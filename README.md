@@ -81,7 +81,7 @@ py -3.13 -m venv .venv
 - [x] スクリプト作成データのimport・準備CLIと、合成bundleの評価①/②のオフライン採点CLIを実行（モデル性能は未測定）。
 - [x] 学習upload計画とモデル配置計画のオフライン生成を実行（送信・配置は未実施）。
 - [x] 評価report→費用入力adapter、欠測・case/tool/cohort/runtime不一致の保留、fresh reviewのhash照合、公開図表の不変性を含む統合オフライン166テストを実行。公開対象だけのGit index exportと新規`.venv`でも再確認。
-- [ ] GitHub Actions上でのworkflow実行（ローカルでの同等手順確認とは別）。
+- [x] [GitHub Actions上のWindows workflow](https://github.com/shitada/foundry-distillation-lab/actions/workflows/offline.yml)でテスト・データ準備・説明用レポート・公開対象検査を実行。
 - [ ] クラウドの認証・リージョン・モデル利用可否・quotaの現地確認。
 - [ ] 有料teacher収集、SFT、モデル/agent配置、実推論の通し検証。
 - [ ] Hostedの実ツール実行とSDKコンテキスト上のcall IDの対応確認。現行captureの名前・引数からの照合は診断用で、これだけの証跡ではツール使用ケースを成功判定しない。

@@ -12,6 +12,7 @@
 - wheelを作成・インストールし、isolated Pythonからパッケージと日本語contractを読み込み、架空店舗ツールを呼び出し。
 - 元のまま移植した4ファイルのhashとMIT表示を照合。Gitの改行変換でhashが変わらない属性を設定。
 - 相対リンク・公開対象・既知の個人環境識別子の混入確認。
+- [初回GitHub Actions実行](https://github.com/shitada/foundry-distillation-lab/actions/runs/35436920569)でWindows上のテスト、データ準備、説明用レポート、公開対象検査が成功。以後の状態は[workflow履歴](https://github.com/shitada/foundry-distillation-lab/actions/workflows/offline.yml)を参照。
 
 ## オフラインでつながる工程
 
@@ -36,7 +37,7 @@ SDKコンテキストからの直接のcall ID対応は未確認であり、人�
 
 ## 未確認事項
 
-GitHub Actionsの実行、クラウド資格情報・利用可否・quota、実学習、実デプロイ、
+クラウド資格情報・利用可否・quota、実学習、実デプロイ、
 モデル推論、Hostedの実protocol・SDK連携・永続volume・capture回収は未確認です。
 ARMの条件付き操作とazd内部のretryも、mock成功をサービス保証と扱ってはいけません。
 学習効果、品質同等性、応答性能、実価格・請求・運用費優位性は測定していません。
