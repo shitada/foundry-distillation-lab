@@ -1,0 +1,11 @@
+{
+  "subscription_id": "00000000-0000-0000-0000-000000000000",
+  "resource_group": "example-group",
+  "account": "example-account",
+  "deployment_prefix": "retail-student",
+  "model_name": "REPLACE_WITH_SELECTED_FINE_TUNED_MODEL_ID",
+  "model_version": "1",
+  "sku": "GlobalStandard",
+  "capacity": 1,
+  "estimated_cost": 100
+}

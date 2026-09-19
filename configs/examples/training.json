@@ -1,0 +1,10 @@
+{
+  "project_endpoint": "https://example.services.ai.azure.com/api/projects/example",
+  "model": "REPLACE_WITH_SUPPORTED_BASE_MODEL_AND_VERSION",
+  "training_type": "Standard",
+  "hyperparameters": {"n_epochs": 2},
+  "seed": 42,
+  "suffix": "retail-study",
+  "upload_estimated_cost": 0,
+  "submit_estimated_cost": 100
+}

@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "illustrative",
+  "currency": "JPY",
+  "monthly_requests": 1000,
+  "horizon_months": 6,
+  "scenario": "Fictional JPY example, not Azure prices; 2026-08-31 business date",
+  "variants": {
+    "teacher": {
+      "inference_per_request": 20,
+      "variable_fees_per_request": {
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "monthly_fixed_components": {
+        "model_hosting": 0,
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "initial_components": {
+        "generation": 0,
+        "training": 0,
+        "evaluation": 0,
+        "other": 0
+      },
+      "per_request": 20,
+      "monthly_fixed": 0,
+      "initial_total": 0,
+      "monthly_cost": 20000,
+      "reviewed_success_rate": null,
+      "projected_cost_per_reviewed_success": null,
+      "quality_gate": "unreviewed",
+      "review_complete": false,
+      "source": {
+        "kind": "fictional",
+        "price_date": null,
+        "model_version": "fictional-teacher",
+        "tier": "not-applicable",
+        "unit": "JPY/request"
+      }
+    },
+    "base": {
+      "inference_per_request": 2,
+      "variable_fees_per_request": {
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "monthly_fixed_components": {
+        "model_hosting": 9000,
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "initial_components": {
+        "generation": 0,
+        "training": 0,
+        "evaluation": 0,
+        "other": 0
+      },
+      "per_request": 2,
+      "monthly_fixed": 9000,
+      "initial_total": 0,
+      "monthly_cost": 11000,
+      "reviewed_success_rate": null,
+      "projected_cost_per_reviewed_success": null,
+      "quality_gate": "unreviewed",
+      "review_complete": false,
+      "source": {
+        "kind": "fictional",
+        "price_date": null,
+        "model_version": "fictional-base",
+        "tier": "not-applicable",
+        "unit": "JPY/request"
+      }
+    },
+    "fine_tuned": {
+      "inference_per_request": 2,
+      "variable_fees_per_request": {
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "monthly_fixed_components": {
+        "model_hosting": 9000,
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "initial_components": {
+        "generation": 0,
+        "training": 18000,
+        "evaluation": 0,
+        "other": 0
+      },
+      "per_request": 2,
+      "monthly_fixed": 9000,
+      "initial_total": 18000,
+      "monthly_cost": 11000,
+      "reviewed_success_rate": null,
+      "projected_cost_per_reviewed_success": null,
+      "quality_gate": "unreviewed",
+      "review_complete": false,
+      "source": {
+        "kind": "fictional",
+        "price_date": null,
+        "model_version": "fictional-fine-tuned",
+        "tier": "not-applicable",
+        "unit": "JPY/request"
+      }
+    }
+  },
+  "comparisons": {
+    "base": {
+      "status": "volume_crossover",
+      "crossover_requests": 500.0,
+      "monthly_savings": 9000,
+      "incremental_initial": 0,
+      "payback_months": 0.0,
+      "payback_whole_months": 0
+    },
+    "fine_tuned": {
+      "status": "volume_crossover",
+      "crossover_requests": 500.0,
+      "monthly_savings": 9000,
+      "incremental_initial": 18000,
+      "payback_months": 2.0,
+      "payback_whole_months": 2
+    }
+  },
+  "decision_draft": {
+    "decision": "hold",
+    "reasons": [
+      "Illustrative values are not adoption evidence.",
+      "Comparable human-reviewed quality evidence is missing or the quality gate failed.",
+      "Human decision required: adopt / conditional / reject / hold."
+    ]
+  }
+}

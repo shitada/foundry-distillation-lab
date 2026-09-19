@@ -1,0 +1,19 @@
+name: Offline laboratory
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -e .
+      - run: python -m unittest discover -s tests -v
+      - run: python scripts\prepare_data.py --input data\samples\traces.jsonl --output runs\ci-data
+      - run: python scripts\report.py --input examples\illustrative\cost-input.json --output runs\ci-report
+      - run: python scripts\check_publication.py

@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# Preserve byte-level provenance for the four exact licensed source copies.
+/LICENSE -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+/src/foundry_distillation_lab/retail/synthetic_store.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+/src/foundry_distillation_lab/retail/contract/zava_system_prompt.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+/src/foundry_distillation_lab/retail/contract/zava_tools.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

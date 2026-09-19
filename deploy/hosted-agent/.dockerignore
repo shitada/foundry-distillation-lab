@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!requirements.txt
+!LICENSE
+!main.py
+!capture.py
+!tools.py
+!foundry_distillation_lab/
+!foundry_distillation_lab/**

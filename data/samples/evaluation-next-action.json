@@ -1,0 +1,72 @@
+{
+  "schema": "retail-evaluation-input-v1",
+  "evidence_kind": "synthetic_illustration_not_measurement",
+  "models": ["teacher", "base", "fine_tuned"],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_order_details",
+        "description": "注文を確認するためのオフライン採点用縮小スキーマです。",
+        "parameters": {
+          "type": "object",
+          "properties": {"order_id": {"type": "string"}},
+          "required": ["order_id"]
+        }
+      }
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "next-order-lookup",
+      "messages": [
+        {"role": "system", "content": "最初に注文情報を確認してください。"},
+        {"role": "user", "content": "架空の注文 ORD-DEMO-001 の情報を確認したいです。"}
+      ],
+      "expected": {
+        "kind": "tool",
+        "calls": [{"name": "get_order_details", "arguments": {"order_id": "ORD-DEMO-001"}}]
+      }
+    }
+  ],
+  "records": [
+    {
+      "case_id": "next-order-lookup", "model": "teacher", "status": "completed",
+      "origin": "synthetic_fixture",
+      "message": {
+        "content": null,
+        "tool_calls": [
+          {"id": "demo-1", "type": "function", "function": {
+            "name": "get_order_details", "arguments": "{\"order_id\":\"ORD-DEMO-001\"}"
+          }}
+        ]
+      },
+      "usage": {"input_tokens": 120, "output_tokens": 18, "cached_input_tokens": 0},
+      "latency_seconds": 0.6
+    },
+    {
+      "case_id": "next-order-lookup", "model": "base", "status": "completed",
+      "origin": "synthetic_fixture",
+      "message": {
+        "content": null,
+        "tool_calls": [
+          {"name": "get_order_details", "arguments": {"order_id": "ORD-DEMO-002"}}
+        ]
+      },
+      "usage": null,
+      "latency_seconds": 0.3
+    },
+    {
+      "case_id": "next-order-lookup", "model": "fine_tuned", "status": "completed",
+      "origin": "synthetic_fixture",
+      "message": {
+        "content": null,
+        "tool_calls": [
+          {"name": "get_order_details", "arguments": {"order_id": "ORD-DEMO-001"}}
+        ]
+      },
+      "usage": {"input_tokens": 120, "output_tokens": 17, "cached_input_tokens": null},
+      "latency_seconds": 0.35
+    }
+  ]
+}

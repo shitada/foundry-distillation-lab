@@ -1,0 +1,81 @@
+{
+  "upstream_repository": "https://github.com/microsoft-foundry/fine-tuning",
+  "upstream_reference_commit": "2de8f491026472358919b35e473ab42393a686a7",
+  "japanese_fork_repository": "https://github.com/shitada/fine-tuning",
+  "local_source_head": "7a06f181eba475e05e608924de8e84d79a1c5978",
+  "local_worktree_included_uncommitted_files": true,
+  "note": "Local file hashes, not HEAD alone, identify the adapted worktree evidence. An uncommitted file is not asserted to exist in upstream or fork commits.",
+  "license": "MIT; upstream LICENSE verified from the pinned local git object",
+  "sources": [
+    {
+      "source_path": "LICENSE",
+      "local_source_sha256": "a1bedb9b9b85e08dba9a71efcb9ac6bbf8bcf555984c59a8dca35a46e9548782",
+      "target": "LICENSE",
+      "adaptation": "unchanged",
+      "target_sha256": "a1bedb9b9b85e08dba9a71efcb9ac6bbf8bcf555984c59a8dca35a46e9548782"
+    },
+    {
+      "source_path": "Demos/TracesDistillation/fixtures/zava_system_prompt.md",
+      "local_source_sha256": "c6febd46ec5187c463a84f83f9c89f491cd80fff0c148613b89ea219c84847f0",
+      "target": "src/foundry_distillation_lab/retail/contract/zava_system_prompt.md",
+      "adaptation": "unchanged Japanese adaptation",
+      "target_sha256": "c6febd46ec5187c463a84f83f9c89f491cd80fff0c148613b89ea219c84847f0"
+    },
+    {
+      "source_path": "Demos/TracesDistillation/fixtures/zava_tools.json",
+      "local_source_sha256": "2277d2dea3d6582073bcc4bacc3f90cb44231d79669d50a0c552110660f2894d",
+      "target": "src/foundry_distillation_lab/retail/contract/zava_tools.json",
+      "adaptation": "unchanged Japanese adaptation",
+      "target_sha256": "2277d2dea3d6582073bcc4bacc3f90cb44231d79669d50a0c552110660f2894d"
+    },
+    {
+      "source_path": "Demos/TracesDistillation/agent/src/zava-traces-demo/synthetic_store.py",
+      "local_source_sha256": "65c774b633b19760dbc6d0b181fab309b1624c7f6ea75e2be387ba83c390c5c2",
+      "target": "src/foundry_distillation_lab/retail/synthetic_store.py",
+      "adaptation": "unchanged Japanese synthetic business",
+      "target_sha256": "65c774b633b19760dbc6d0b181fab309b1624c7f6ea75e2be387ba83c390c5c2"
+    },
+    {
+      "source_path": "Demos/TracesDistillation/fixtures/transform_traces.py",
+      "local_source_sha256": "cc29390a81af9bb2278c3afa8954809a506e6eea67d88bdafbf249fc0ae68884",
+      "target": "src/foundry_distillation_lab/datasets",
+      "adaptation": "design reference; rewritten conservative normalizer"
+    },
+    {
+      "source_path": "Demos/TracesDistillation/fixtures/prepare_baseline.py",
+      "local_source_sha256": "9c60edc3d46c40fe91af1446011e09df1fceb5a2b10a3a9799cc5700541faef7",
+      "target": "src/foundry_distillation_lab/datasets",
+      "adaptation": "adapted split and next-action design"
+    },
+    {
+      "source_path": "Demos/TracesDistillation/fixtures/train_student.py",
+      "local_source_sha256": "bc6c23a580c2a29ce0f01cf7f012b8e8827ec26fa3900ffe9a536367dc688423",
+      "target": "src/foundry_distillation_lab/training",
+      "adaptation": "adapted training safety design"
+    },
+    {
+      "source_path": "Demos/TracesDistillation/fixtures/deploy_student.py",
+      "local_source_sha256": "4b2248386520f02a5770bf0fdd4d45f4bcd5b70be6d789f1c3700aa4c120e8d0",
+      "target": "src/foundry_distillation_lab/training",
+      "adaptation": "adapted ownership and approval design"
+    },
+    {
+      "source_path": "Demos/TracesDistillation/e2e-agent/evaluation_runner.py",
+      "local_source_sha256": "83833323e3ee5c90fa39f3ad330b75a976a8dd6bb8444516131e71bcb3bc23eb",
+      "target": "src/foundry_distillation_lab/evaluation",
+      "adaptation": "adapted evaluation evidence design"
+    },
+    {
+      "source_path": "Demos/TracesDistillation/e2e-agent/evaluation_scoring.py",
+      "local_source_sha256": "bbc59f6052046f3a06e6116f8585c54f71030d1856c4a238dae2e905480de447",
+      "target": "src/foundry_distillation_lab/evaluation",
+      "adaptation": "adapted provisional scoring design"
+    },
+    {
+      "source_path": "Demos/TracesDistillation/report_step17_offline.py",
+      "local_source_sha256": "ca334554670ec4fce9680391b5b6b9975d94bcdc30c323d8c16c70a994f914d7",
+      "target": "src/foundry_distillation_lab/reporting",
+      "adaptation": "cost-analysis reference; no historical result copied"
+    }
+  ]
+}

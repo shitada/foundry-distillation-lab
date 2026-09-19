@@ -1,0 +1,7 @@
+{
+  "project_endpoint": "https://example.services.ai.azure.com/api/projects/example",
+  "model": "REPLACE_WITH_TEACHER_DEPLOYMENT_NAME",
+  "max_output_tokens": 2048,
+  "conversation_seconds": 300,
+  "estimated_cost_per_model_request": 1
+}

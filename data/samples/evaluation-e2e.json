@@ -1,0 +1,94 @@
+{
+  "schema": "retail-evaluation-input-v1",
+  "evidence_kind": "synthetic_illustration_not_measurement",
+  "models": ["teacher", "base", "fine_tuned"],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_order_details",
+        "parameters": {
+          "type": "object", "properties": {"order_id": {"type": "string"}}, "required": ["order_id"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_fulfillment_status",
+        "parameters": {
+          "type": "object", "properties": {"order_id": {"type": "string"}}, "required": ["order_id"]
+        }
+      }
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "e2e-status-only",
+      "user_input": "架空の注文 ORD-DEMO-001 の配送状況だけ教えてください。変更は不要です。",
+      "expected": {
+        "initial_tools": ["get_order_details", "get_fulfillment_status"],
+        "required_calls": [
+          {
+            "name": "get_order_details",
+            "arguments": {"order_id": "ORD-DEMO-001"},
+            "result": {"order_id": "ORD-DEMO-001", "items": [{"item_id": "ITEM-DEMO-001"}]}
+          },
+          {
+            "name": "get_fulfillment_status",
+            "arguments": {"order_id": "ORD-DEMO-001"},
+            "result": {"order_id": "ORD-DEMO-001", "status": "配送中"}
+          }
+        ],
+        "allowed_mutations": [],
+        "final_state": {"terminal": "answer_only", "submissions": []}
+      }
+    }
+  ],
+  "records": [
+    {
+      "case_id": "e2e-status-only", "model": "teacher", "status": "completed",
+      "origin": "synthetic_fixture",
+      "answer": "注文 ORD-DEMO-001 は配送中です。変更処理は行っていません。",
+      "usage": {"input_tokens": 420, "output_tokens": 80, "cached_input_tokens": null},
+      "latency_seconds": 1.5,
+      "final_state": {"terminal": "answer_only", "submissions": []},
+      "events": [
+        {"event": "model_start", "call_id": "model-1"},
+        {"event": "model_finish", "call_id": "model-1", "status": "completed",
+         "usage": {"input_tokens": 100, "output_tokens": 20, "cached_input_tokens": null}, "message": {
+          "content": null,
+          "tool_calls": [{"id": "lookup", "name": "get_order_details", "arguments": {"order_id": "ORD-DEMO-001"}}]
+        }},
+        {"event": "tool_start", "call_id": "lookup", "name": "get_order_details", "arguments": {"order_id": "ORD-DEMO-001"}},
+        {"event": "tool_finish", "call_id": "lookup", "status": "completed",
+         "result": {"order_id": "ORD-DEMO-001", "items": [{"item_id": "ITEM-DEMO-001"}]}},
+        {"event": "model_start", "call_id": "model-2"},
+        {"event": "model_finish", "call_id": "model-2", "status": "completed",
+         "usage": {"input_tokens": 140, "output_tokens": 20, "cached_input_tokens": null}, "message": {
+          "content": null,
+          "tool_calls": [{"id": "fulfillment", "name": "get_fulfillment_status", "arguments": {"order_id": "ORD-DEMO-001"}}]
+        }},
+        {"event": "tool_start", "call_id": "fulfillment", "name": "get_fulfillment_status", "arguments": {"order_id": "ORD-DEMO-001"}},
+        {"event": "tool_finish", "call_id": "fulfillment", "status": "completed",
+         "result": {"order_id": "ORD-DEMO-001", "status": "配送中"}},
+        {"event": "model_start", "call_id": "model-3"},
+        {"event": "model_finish", "call_id": "model-3", "status": "completed",
+         "usage": {"input_tokens": 180, "output_tokens": 40, "cached_input_tokens": null}, "message": {
+          "content": "注文 ORD-DEMO-001 は配送中です。変更処理は行っていません。",
+          "tool_calls": []
+        }},
+        {"event": "attempt_finish", "status": "completed"}
+      ]
+    },
+    {
+      "case_id": "e2e-status-only", "model": "base", "status": "completed",
+      "origin": "synthetic_fixture",
+      "answer": "正常に完了しました。",
+      "events": [],
+      "final_state": {"terminal": "answer_only", "submissions": []},
+      "usage": null,
+      "latency_seconds": 0.4
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "illustrative",
+  "scenario": "Fictional JPY example, not Azure prices; 2026-08-31 business date",
+  "currency": "JPY",
+  "monthly_requests": 1000,
+  "horizon_months": 6,
+  "variants": {
+    "teacher": {
+      "inference_mode": "per_request",
+      "prices": {
+        "per_request": 20
+      },
+      "variable_fees_per_request": {
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "monthly_fixed": {
+        "model_hosting": 0,
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "initial": {
+        "generation": 0,
+        "training": 0,
+        "evaluation": 0,
+        "other": 0
+      },
+      "quality": {
+        "review_complete": false,
+        "reviewed_requests": null,
+        "successful_requests": null,
+        "quality_gate": "unreviewed"
+      },
+      "source": {
+        "kind": "fictional",
+        "price_date": null,
+        "model_version": "fictional-teacher",
+        "tier": "not-applicable",
+        "unit": "JPY/request"
+      }
+    },
+    "base": {
+      "inference_mode": "per_request",
+      "prices": {
+        "per_request": 2
+      },
+      "variable_fees_per_request": {
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "monthly_fixed": {
+        "model_hosting": 9000,
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "initial": {
+        "generation": 0,
+        "training": 0,
+        "evaluation": 0,
+        "other": 0
+      },
+      "quality": {
+        "review_complete": false,
+        "reviewed_requests": null,
+        "successful_requests": null,
+        "quality_gate": "unreviewed"
+      },
+      "source": {
+        "kind": "fictional",
+        "price_date": null,
+        "model_version": "fictional-base",
+        "tier": "not-applicable",
+        "unit": "JPY/request"
+      }
+    },
+    "fine_tuned": {
+      "inference_mode": "per_request",
+      "prices": {
+        "per_request": 2
+      },
+      "variable_fees_per_request": {
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "monthly_fixed": {
+        "model_hosting": 9000,
+        "agent": 0,
+        "tools_logs_storage": 0
+      },
+      "initial": {
+        "generation": 0,
+        "training": 18000,
+        "evaluation": 0,
+        "other": 0
+      },
+      "quality": {
+        "review_complete": false,
+        "reviewed_requests": null,
+        "successful_requests": null,
+        "quality_gate": "unreviewed"
+      },
+      "source": {
+        "kind": "fictional",
+        "price_date": null,
+        "model_version": "fictional-fine-tuned",
+        "tier": "not-applicable",
+        "unit": "JPY/request"
+      }
+    }
+  }
+}

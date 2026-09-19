@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img">
+<title>Monthly operating cost by volume</title>
+<desc>ILLUSTRATIVE. teacher solid, base dotted, fine_tuned dashed. See accompanying CSV; blank values are unknown.</desc>
+<rect width="880" height="480" fill="white"/>
+<text x="90" y="27" font-size="18">Monthly operating cost by volume</text>
+<text x="90" y="49" font-size="13">ILLUSTRATIVE; unknown series omitted</text>
+<path d="M90 380 H690" stroke="#ddd"/>
+<text x="82" y="384" text-anchor="end" font-size="12">0</text>
+<text x="90" y="401" text-anchor="middle" font-size="12">0</text>
+<path d="M90 320 H690" stroke="#ddd"/>
+<text x="82" y="324" text-anchor="end" font-size="12">8800</text>
+<text x="210" y="401" text-anchor="middle" font-size="12">400</text>
+<path d="M90 260 H690" stroke="#ddd"/>
+<text x="82" y="264" text-anchor="end" font-size="12">17600</text>
+<text x="330" y="401" text-anchor="middle" font-size="12">800</text>
+<path d="M90 200 H690" stroke="#ddd"/>
+<text x="82" y="204" text-anchor="end" font-size="12">26400</text>
+<text x="450" y="401" text-anchor="middle" font-size="12">1200</text>
+<path d="M90 140 H690" stroke="#ddd"/>
+<text x="82" y="144" text-anchor="end" font-size="12">35200</text>
+<text x="570" y="401" text-anchor="middle" font-size="12">1600</text>
+<path d="M90 80 H690" stroke="#ddd"/>
+<text x="82" y="84" text-anchor="end" font-size="12">44000</text>
+<text x="690" y="401" text-anchor="middle" font-size="12">2000</text>
+<path d="M90 80 V380 H690" fill="none" stroke="black"/>
+<polyline points="90.00,380.00 120.00,366.36 150.00,352.73 180.00,339.09 210.00,325.45 240.00,311.82 270.00,298.18 300.00,284.55 330.00,270.91 360.00,257.27 390.00,243.64 420.00,230.00 450.00,216.36 480.00,202.73 510.00,189.09 540.00,175.45 570.00,161.82 600.00,148.18 630.00,134.55 660.00,120.91 690.00,107.27" fill="none" stroke="#163b65" stroke-width="3" stroke-dasharray=""/>
+<path d="M710 110 h30" stroke="#163b65" stroke-width="3" stroke-dasharray=""/>
+<text x="746" y="114" font-size="12">teacher</text>
+<polyline points="90.00,318.64 120.00,317.27 150.00,315.91 180.00,314.55 210.00,313.18 240.00,311.82 270.00,310.45 300.00,309.09 330.00,307.73 360.00,306.36 390.00,305.00 420.00,303.64 450.00,302.27 480.00,300.91 510.00,299.55 540.00,298.18 570.00,296.82 600.00,295.45 630.00,294.09 660.00,292.73 690.00,291.36" fill="none" stroke="#a14b00" stroke-width="3" stroke-dasharray="2 5"/>
+<path d="M710 140 h30" stroke="#a14b00" stroke-width="3" stroke-dasharray="2 5"/>
+<text x="746" y="144" font-size="12">base</text>
+<polyline points="90.00,318.64 120.00,317.27 150.00,315.91 180.00,314.55 210.00,313.18 240.00,311.82 270.00,310.45 300.00,309.09 330.00,307.73 360.00,306.36 390.00,305.00 420.00,303.64 450.00,302.27 480.00,300.91 510.00,299.55 540.00,298.18 570.00,296.82 600.00,295.45 630.00,294.09 660.00,292.73 690.00,291.36" fill="none" stroke="#146e4a" stroke-width="3" stroke-dasharray="10 5"/>
+<path d="M710 170 h30" stroke="#146e4a" stroke-width="3" stroke-dasharray="10 5"/>
+<text x="746" y="174" font-size="12">fine_tuned</text>
+<text x="390" y="444" text-anchor="middle">Requests / month</text>
+<text transform="translate(22 245) rotate(-90)" text-anchor="middle">JPY / month</text>
+</svg>

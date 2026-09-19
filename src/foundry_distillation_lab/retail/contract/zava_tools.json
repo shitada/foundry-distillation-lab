@@ -1,0 +1,210 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "get_order_details",
+      "description": "注文の商品、会員区分、支払方法、注文日、金額を取得します。必ず最初に呼び出します。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "注文ID。例: ORD-001"
+          }
+        },
+        "required": [
+          "order_id"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_fulfillment_status",
+      "description": "商品ごとの配送状況、約束日、配達日、遅配日数、配達後日数を取得します。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "注文ID。例: ORD-001"
+          }
+        },
+        "required": [
+          "order_id"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "check_resolution_policy",
+      "description": "会員区分、商品区分、返品期限、セール状態、申告理由から、商品の対応可否と条件を確認し、policy_idを返します。対象商品ごとに1回呼び出します。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "注文ID。例: ORD-001"
+          },
+          "item_id": {
+            "type": "string",
+            "description": "注文内の商品ID。例: ITEM-001"
+          },
+          "reason": {
+            "type": "string",
+            "description": "顧客が申告した理由。",
+            "enum": [
+              "破損",
+              "不良",
+              "サイズ違い",
+              "色違い",
+              "誤配送",
+              "お客様都合",
+              "未着",
+              "遅配"
+            ]
+          }
+        },
+        "required": [
+          "order_id",
+          "item_id",
+          "reason"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "check_inventory",
+      "description": "交換先SKUの在庫数と交換可否を確認し、inventory_check_idを返します。交換を処理する場合だけ呼び出します。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "description": "交換先商品のSKU。例: SKU-001"
+          }
+        },
+        "required": [
+          "sku"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "calculate_resolution",
+      "description": "解決内容を確定する前に、policy_idと必要なinventory_check_idを検証し、対象商品の返金額、再入荷手数料、クレジット、交換差額を円で計算してcalculation_idを返します。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "注文ID。例: ORD-001"
+          },
+          "items": {
+            "type": "array",
+            "description": "商品ごとの対応内容。",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item_id": {
+                  "type": "string",
+                  "description": "注文内の商品ID。例: ITEM-001"
+                },
+                "actions": {
+                  "type": "array",
+                  "description": "商品に適用する1件以上の対応。遅配creditは他の対応と併用できます。",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "返金",
+                      "交換",
+                      "代替品発送",
+                      "キャンセル",
+                      "ストアクレジット",
+                      "配送遅延クレジット",
+                      "対象外"
+                    ]
+                  }
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "顧客が申告した理由。",
+                  "enum": [
+                    "破損",
+                    "不良",
+                    "サイズ違い",
+                    "色違い",
+                    "誤配送",
+                    "お客様都合",
+                    "未着",
+                    "遅配"
+                  ]
+                },
+                "policy_id": {
+                  "type": "string",
+                  "description": "check_resolution_policyが返した確認ID。"
+                },
+                "replacement_sku": {
+                  "type": "string",
+                  "description": "交換時の交換先SKU。交換以外では省略します。"
+                },
+                "inventory_check_id": {
+                  "type": "string",
+                  "description": "交換時にcheck_inventoryが返した確認ID。交換以外では省略します。"
+                }
+              },
+              "required": [
+                "item_id",
+                "actions",
+                "reason",
+                "policy_id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "order_id",
+          "items"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "submit_resolution",
+      "description": "calculation_idで計算済みの解決内容を確認し、シミュレーションとして確定します。calculate_resolutionの完了後だけ呼び出します。実システムは変更しません。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "注文ID。例: ORD-001"
+          },
+          "calculation_id": {
+            "type": "string",
+            "description": "calculate_resolutionが返した計算ID。"
+          },
+          "resolution_summary": {
+            "type": "string",
+            "description": "金額と対応内容を含む日本語の解決概要。"
+          }
+        },
+        "required": [
+          "order_id",
+          "calculation_id",
+          "resolution_summary"
+        ]
+      }
+    }
+  }
+]

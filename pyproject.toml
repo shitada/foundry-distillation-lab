@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "foundry-distillation-lab"
+version = "0.1.0"
+description = "Japanese retail agent distillation and evaluation learning lab"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{name = "shitada"}]
+dependencies = []
+
+[project.optional-dependencies]
+cloud = ["openai>=3,<4", "azure-identity>=1.25,<2", "azure-ai-projects>=2.5,<3"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+foundry_distillation_lab = ["retail/contract/*.json", "retail/contract/*.md"]

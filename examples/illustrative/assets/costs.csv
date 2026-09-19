@@ -1,0 +1,4 @@
+variant,per_request,monthly_fixed,initial_total,monthly_cost,reviewed_success_rate,projected_cost_per_reviewed_success
+teacher,20,0,0,20000,,
+base,2,9000,0,11000,,
+fine_tuned,2,9000,18000,11000,,

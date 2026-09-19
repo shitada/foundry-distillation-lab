@@ -1,0 +1,22 @@
+{
+  "schema": "retail-evaluation-input-v1",
+  "evidence_kind": "planned_new_measurement",
+  "notice": "これは未完成の計画テンプレートです。空の cases/tools は意図的に検証エラーになります。承認ではありません。",
+  "models": ["teacher", "base", "fine_tuned"],
+  "inference": {
+    "base_url": "https://YOUR-RESOURCE.openai.azure.com/openai/v1/",
+    "targets": {
+      "teacher": "YOUR-TEACHER-DEPLOYMENT",
+      "base": "YOUR-BASE-DEPLOYMENT",
+      "fine_tuned": "YOUR-FINE-TUNED-DEPLOYMENT"
+    },
+    "max_completion_tokens": 2048,
+    "timeout_seconds": 60,
+    "max_model_calls": 12,
+    "max_tool_calls": 24,
+    "reserve_per_request": null
+  },
+  "tools": [],
+  "cases": [],
+  "records": []
+}

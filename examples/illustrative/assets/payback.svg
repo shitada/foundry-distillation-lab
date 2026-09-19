@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="480" viewBox="0 0 880 480" role="img">
+<title>Cumulative cost at 1000 requests/month (includes initial)</title>
+<desc>ILLUSTRATIVE. teacher solid, base dotted, fine_tuned dashed. See accompanying CSV; blank values are unknown.</desc>
+<rect width="880" height="480" fill="white"/>
+<text x="90" y="27" font-size="18">Cumulative cost at 1000 requests/month (includes initial)</text>
+<text x="90" y="49" font-size="13">ILLUSTRATIVE; unknown series omitted</text>
+<path d="M90 380 H690" stroke="#ddd"/>
+<text x="82" y="384" text-anchor="end" font-size="12">0</text>
+<text x="90" y="401" text-anchor="middle" font-size="12">0</text>
+<path d="M90 320 H690" stroke="#ddd"/>
+<text x="82" y="324" text-anchor="end" font-size="12">26400</text>
+<text x="210" y="401" text-anchor="middle" font-size="12">1.2</text>
+<path d="M90 260 H690" stroke="#ddd"/>
+<text x="82" y="264" text-anchor="end" font-size="12">52800</text>
+<text x="330" y="401" text-anchor="middle" font-size="12">2.4</text>
+<path d="M90 200 H690" stroke="#ddd"/>
+<text x="82" y="204" text-anchor="end" font-size="12">79200</text>
+<text x="450" y="401" text-anchor="middle" font-size="12">3.6</text>
+<path d="M90 140 H690" stroke="#ddd"/>
+<text x="82" y="144" text-anchor="end" font-size="12">105600</text>
+<text x="570" y="401" text-anchor="middle" font-size="12">4.8</text>
+<path d="M90 80 H690" stroke="#ddd"/>
+<text x="82" y="84" text-anchor="end" font-size="12">132000</text>
+<text x="690" y="401" text-anchor="middle" font-size="12">6</text>
+<path d="M90 80 V380 H690" fill="none" stroke="black"/>
+<polyline points="90.00,380.00 190.00,334.55 290.00,289.09 390.00,243.64 490.00,198.18 590.00,152.73 690.00,107.27" fill="none" stroke="#163b65" stroke-width="3" stroke-dasharray=""/>
+<path d="M710 110 h30" stroke="#163b65" stroke-width="3" stroke-dasharray=""/>
+<text x="746" y="114" font-size="12">teacher</text>
+<polyline points="90.00,380.00 190.00,355.00 290.00,330.00 390.00,305.00 490.00,280.00 590.00,255.00 690.00,230.00" fill="none" stroke="#a14b00" stroke-width="3" stroke-dasharray="2 5"/>
+<path d="M710 140 h30" stroke="#a14b00" stroke-width="3" stroke-dasharray="2 5"/>
+<text x="746" y="144" font-size="12">base</text>
+<polyline points="90.00,339.09 190.00,314.09 290.00,289.09 390.00,264.09 490.00,239.09 590.00,214.09 690.00,189.09" fill="none" stroke="#146e4a" stroke-width="3" stroke-dasharray="10 5"/>
+<path d="M710 170 h30" stroke="#146e4a" stroke-width="3" stroke-dasharray="10 5"/>
+<text x="746" y="174" font-size="12">fine_tuned</text>
+<text x="390" y="444" text-anchor="middle">Months</text>
+<text transform="translate(22 245) rotate(-90)" text-anchor="middle">JPY</text>
+</svg>

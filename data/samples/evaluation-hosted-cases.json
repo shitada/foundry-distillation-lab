@@ -1,0 +1,39 @@
+{
+  "schema": "retail-evaluation-input-v1",
+  "evidence_kind": "synthetic_illustration_not_measurement",
+  "models": ["teacher", "base", "fine_tuned"],
+  "hosted_targets": {
+    "teacher": {
+      "agent_name": "retail-trace-collector",
+      "model": "illustrative-teacher",
+      "endpoint": "https://example.invalid/api/projects/illustrative"
+    }
+  },
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_order_details",
+        "parameters": {
+          "type": "object",
+          "properties": {"order_id": {"type": "string"}},
+          "required": ["order_id"]
+        }
+      }
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "hosted-clarify-order",
+      "conversation_id": "illustrative-conversation-1",
+      "user_input": "注文番号が分からないので、必要な情報を教えてください。",
+      "expected": {
+        "initial_tools": [],
+        "required_calls": [],
+        "allowed_mutations": [],
+        "final_state": {"terminal": "answer_only", "submissions": []}
+      }
+    }
+  ],
+  "records": []
+}

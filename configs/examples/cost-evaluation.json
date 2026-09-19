@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "actual",
+  "scenario": "Evaluation-cohort projection; prices and production equivalence unreviewed",
+  "currency": "JPY",
+  "monthly_requests": 1000,
+  "horizon_months": 12,
+  "evaluation_projection": {
+    "weighting": "uniform_scheduled_slots",
+    "expected_runtime": "local_direct_model",
+    "production_category_mix": null,
+    "production_equivalence_reviewed": false
+  },
+  "variants": {
+    "teacher": {
+      "inference_mode": "tokens",
+      "prices": {"input_per_million": null, "cached_input_per_million": null, "output_per_million": null},
+      "usage_per_request": {"input_tokens": null, "cached_input_tokens": null, "output_tokens": null},
+      "variable_fees_per_request": {"agent": null, "tools_logs_storage": null},
+      "monthly_fixed": {"model_hosting": null, "agent": null, "tools_logs_storage": null},
+      "initial": {"generation": null, "training": null, "evaluation": null, "other": null},
+      "quality": {"review_complete": false, "reviewed_requests": null, "successful_requests": null, "quality_gate": "unreviewed"},
+      "source": {"price_url": null, "price_date": null, "model_version": null, "tier": null, "region": null, "unit": "currency/million tokens", "category_mix": null, "hosting_hours": null, "conditions_hash": null}
+    },
+    "base": {
+      "inference_mode": "tokens",
+      "prices": {"input_per_million": null, "cached_input_per_million": null, "output_per_million": null},
+      "usage_per_request": {"input_tokens": null, "cached_input_tokens": null, "output_tokens": null},
+      "variable_fees_per_request": {"agent": null, "tools_logs_storage": null},
+      "monthly_fixed": {"model_hosting": null, "agent": null, "tools_logs_storage": null},
+      "initial": {"generation": null, "training": null, "evaluation": null, "other": null},
+      "quality": {"review_complete": false, "reviewed_requests": null, "successful_requests": null, "quality_gate": "unreviewed"},
+      "source": {"price_url": null, "price_date": null, "model_version": null, "tier": null, "region": null, "unit": "currency/million tokens", "category_mix": null, "hosting_hours": null, "conditions_hash": null}
+    },
+    "fine_tuned": {
+      "inference_mode": "tokens",
+      "prices": {"input_per_million": null, "cached_input_per_million": null, "output_per_million": null},
+      "usage_per_request": {"input_tokens": null, "cached_input_tokens": null, "output_tokens": null},
+      "variable_fees_per_request": {"agent": null, "tools_logs_storage": null},
+      "monthly_fixed": {"model_hosting": null, "agent": null, "tools_logs_storage": null},
+      "initial": {"generation": null, "training": null, "evaluation": null, "other": null},
+      "quality": {"review_complete": false, "reviewed_requests": null, "successful_requests": null, "quality_gate": "unreviewed"},
+      "source": {"price_url": null, "price_date": null, "model_version": null, "tier": null, "region": null, "unit": "currency/million tokens", "category_mix": null, "hosting_hours": null, "conditions_hash": null}
+    }
+  }
+}

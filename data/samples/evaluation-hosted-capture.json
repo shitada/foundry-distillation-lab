@@ -1,0 +1,43 @@
+{
+  "kind": "hosted-retail-evidence",
+  "schema_version": 1,
+  "evidence_kind": "synthetic_illustration_not_measurement",
+  "notice": "これはアダプター検証用の架空証跡です。実際の Hosted Agent は実行していません。",
+  "conversation_id": "illustrative-conversation-1",
+  "user_input": "注文番号が分からないので、必要な情報を教えてください。",
+  "input_sha256": "f2f40cf3645af9e344d54d7a927bfe447d61676f3ef4952a31f47a2c29f1f067",
+  "agent": {"name": "retail-trace-collector", "id": null, "version": null},
+  "runtime": {
+    "kind": "foundry_hosted_agent",
+    "model": "illustrative-teacher",
+    "endpoint": "https://example.invalid/api/projects/illustrative",
+    "sdk_versions": null
+  },
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_order_details",
+        "parameters": {
+          "type": "object",
+          "properties": {"order_id": {"type": "string"}},
+          "required": ["order_id"]
+        }
+      }
+    }
+  ],
+  "status": "completed",
+  "events": [
+    {"event": "model_start", "call_id": "model-1"},
+    {
+      "event": "model_finish", "call_id": "model-1", "status": "completed",
+      "message": {"content": "注文番号を教えてください。", "tool_calls": []},
+      "usage": null
+    },
+    {"event": "attempt_finish", "status": "completed"}
+  ],
+  "answer": "注文番号を教えてください。",
+  "final_state": {"terminal": "answer_only", "submissions": []},
+  "usage": null,
+  "latency_seconds": null
+}
