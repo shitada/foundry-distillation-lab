@@ -7,7 +7,7 @@
 日本語化済みの小売デモを使い、自然な説明と正しい状態変更を同時に評価できるようにします。プロンプトやツールを再翻訳して別の実験にしません。
 
 ## 前提
-元デモは[TracesDistillation](https://github.com/microsoft-foundry/fine-tuning/tree/main/Demos/TracesDistillation)です。新リポジトリに収録された日本語contract・ツール定義・架空業務コードを正本とし、上流の最新版と同一だと仮定しません。個別の移植元・変更は出典記録を参照します。
+元デモは[TracesDistillation](https://github.com/microsoft-foundry/fine-tuning/tree/main/Demos/TracesDistillation)です。新リポジトリに収録された日本語contract・ツール定義・架空業務コードを正本とし、参照元リポジトリの最新版と同一だと仮定しません。個別の移植元・変更は出典記録を参照します。
 
 ## 実施内容
 正本は`src\foundry_distillation_lab\retail\contract\zava_system_prompt.md`と`zava_tools.json`です。6ツールの契約は次のようにつながります。完全な引数定義はJSONを読み、説明から推測して新設しません。

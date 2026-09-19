@@ -21,6 +21,8 @@ py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe scripts\deployment.py --help
 ```
 
+以降の章にある`python`は、この仮想環境のPythonを指します。リポジトリのルートで、コマンド先頭の`python`を`.\.venv\Scripts\python.exe`に置き換えて実行してください。仮想環境の有効化は不要です。
+
 live実行の前に、次の表を別途承認します。設定例の存在は承認ではありません。
 
 | 項目 | 固定する内容 |
