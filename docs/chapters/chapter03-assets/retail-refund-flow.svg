@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="650" viewBox="0 0 640 650" role="img" aria-labelledby="title desc">
+  <title id="title">破損した商品の返金を進める例</title>
+  <desc id="desc">教材の架空注文ORD-0001のランニングシューズについて、注文と配送を確認し、破損による返金条件を照会する。返金9,100円、手数料0円を計算し、顧客の依頼の範囲で模擬処理を確定して日本語で説明する。実際の送金は行わない。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="640" height="650" fill="#ffffff"/>
+  <g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" text-anchor="middle" fill="#172033">
+    <text x="320" y="31" font-size="23" font-weight="bold">破損した商品の返金を進める例</text>
+    <text x="320" y="53" font-size="15">注文・配送確認から、返金処理と説明まで</text>
+    <rect x="32" y="68" width="576" height="64" rx="10" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="320" y="94" font-size="17">注文ORD-0001のランニングシューズが破損。</text>
+    <text x="320" y="119" font-size="17">「返品して返金してください」</text>
+  </g>
+  <g stroke="#64748b" stroke-width="2" fill="none">
+    <line x1="320" y1="134" x2="320" y2="146" marker-end="url(#arrow)"/>
+    <line x1="320" y1="226" x2="320" y2="238" marker-end="url(#arrow)"/>
+    <line x1="320" y1="318" x2="320" y2="330" marker-end="url(#arrow)"/>
+    <line x1="320" y1="410" x2="320" y2="422" marker-end="url(#arrow)"/>
+    <line x1="320" y1="502" x2="320" y2="514" marker-end="url(#arrow)"/>
+  </g>
+  <g fill="#eff6ff" stroke="#93b5e7">
+    <rect x="32" y="154" width="576" height="70" rx="10"/>
+    <rect x="32" y="246" width="576" height="70" rx="10"/>
+    <rect x="32" y="338" width="576" height="70" rx="10"/>
+    <rect x="32" y="430" width="576" height="70" rx="10"/>
+    <rect x="32" y="522" width="576" height="70" rx="10"/>
+  </g>
+  <g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" text-anchor="middle" fill="#172033">
+    <text x="320" y="182" font-size="20" font-weight="bold">1. 注文・配送情報を確認する</text>
+    <text x="320" y="207" font-size="16">対象：ランニングシューズ1点・商品代金9,100円</text>
+    <text x="320" y="274" font-size="20" font-weight="bold">2. 返品条件を確認する</text>
+    <text x="320" y="299" font-size="16">破損を理由とした返金が可能・手数料なし</text>
+    <text x="320" y="366" font-size="20" font-weight="bold">3. 返金額を計算する</text>
+    <text x="320" y="391" font-size="16">計算結果：返金9,100円・手数料0円</text>
+    <text x="320" y="458" font-size="20" font-weight="bold">4. 返金対応を模擬的に確定する</text>
+    <text x="320" y="483" font-size="16">計算済みの内容から、架空の受付番号を発行</text>
+    <text x="320" y="550" font-size="20" font-weight="bold">5. 結果を日本語で説明する</text>
+    <text x="320" y="575" font-size="16">金額・対応内容と、模擬処理であることを説明</text>
+    <text x="320" y="619" font-size="16" font-weight="bold">実際の送金・実店舗への書き込みはありません。</text>
+    <text x="320" y="642" font-size="14">交換ではないため、この例では在庫確認のツールを使いません。</text>
+  </g>
+</svg>
