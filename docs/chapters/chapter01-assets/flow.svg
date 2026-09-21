@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="580" height="650" viewBox="0 0 580 650" role="img" aria-labelledby="title desc">
+<title id="title">蒸留と評価の実践の流れ</title>
+<desc id="desc">業務定義、教師履歴、学習前評価、追加学習、学習後評価、業務全体評価、採用判断の7段階。</desc>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" fill="#172033">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/></marker></defs>
+<rect x="20" y="12" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
+<text x="290" y="40" font-size="19" text-anchor="middle" font-weight="bold">1. 業務条件と評価基準を決める</text>
+<text x="290" y="64" font-size="16" text-anchor="middle">何を正解とし、何を許さないか</text>
+<line x1="290" x2="290" y1="82" y2="99" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="20" y="104" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
+<text x="290" y="132" font-size="19" text-anchor="middle" font-weight="bold">2. 教師モデルの履歴を収集・選別する</text>
+<text x="290" y="156" font-size="16" text-anchor="middle">学習用と評価用のデータを分ける</text>
+<line x1="290" x2="290" y1="174" y2="191" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="20" y="196" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
+<text x="290" y="224" font-size="19" text-anchor="middle" font-weight="bold">3. 学習前の生徒モデルを測る</text>
+<text x="290" y="248" font-size="16" text-anchor="middle">評価①：保存済み履歴から次の行動</text>
+<line x1="290" x2="290" y1="266" y2="283" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="20" y="288" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
+<text x="290" y="316" font-size="19" text-anchor="middle" font-weight="bold">4. 生徒モデルへ追加学習する</text>
+<text x="290" y="340" font-size="16" text-anchor="middle">教師ありファインチューニング（SFT）</text>
+<line x1="290" x2="290" y1="358" y2="375" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="20" y="380" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
+<text x="290" y="408" font-size="19" text-anchor="middle" font-weight="bold">5. 学習後も同じ評価①で比べる</text>
+<text x="290" y="432" font-size="16" text-anchor="middle">改善と悪化を、条件を揃えて確認</text>
+<line x1="290" x2="290" y1="450" y2="467" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="20" y="472" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
+<text x="290" y="500" font-size="19" text-anchor="middle" font-weight="bold">6. 3者で業務全体を比べる</text>
+<text x="290" y="524" font-size="16" text-anchor="middle">評価②：仕事の完了・違反・待ち時間・使用量</text>
+<line x1="290" x2="290" y1="542" y2="559" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="20" y="564" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
+<text x="290" y="592" font-size="19" text-anchor="middle" font-weight="bold">7. 品質・時間・総費用から判断する</text>
+<text x="290" y="616" font-size="16" text-anchor="middle">採用／条件付き採用／見送り／保留</text>
+</g></svg>

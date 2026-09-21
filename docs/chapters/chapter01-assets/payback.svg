@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="460" viewBox="0 0 720 460" role="img" aria-labelledby="title desc">
+<title id="title">図2：追加の初期費用をいつ回収できるか</title>
+<desc id="desc">月1,000件で一定と仮定。生徒側に追加初期費用18,000円。。2か月で同額</desc>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" fill="#172033">
+<text x="24" y="32" font-size="23" font-weight="bold">図2：追加の初期費用をいつ回収できるか</text>
+<text x="24" y="61" font-size="15" >月1,000件で一定と仮定。生徒側に追加初期費用18,000円。</text>
+<line x1="28" x2="68" y1="86" y2="86" stroke="#2563eb" stroke-width="3"/>
+<text x="78" y="92" font-size="16" >教師モデル</text>
+<line x1="305" x2="345" y1="86" y2="86" stroke="#b45309" stroke-width="3" stroke-dasharray="8,5"/>
+<text x="355" y="92" font-size="16" >学習済みの生徒モデル</text>
+<line x1="92" x2="682" y1="350.0" y2="350.0" stroke="#d9e0e7"/>
+<text x="82" y="355.0" font-size="14" text-anchor="end">0</text>
+<line x1="92" x2="682" y1="291.25" y2="291.25" stroke="#d9e0e7"/>
+<text x="82" y="296.25" font-size="14" text-anchor="end">30,000</text>
+<line x1="92" x2="682" y1="232.5" y2="232.5" stroke="#d9e0e7"/>
+<text x="82" y="237.5" font-size="14" text-anchor="end">60,000</text>
+<line x1="92" x2="682" y1="173.75" y2="173.75" stroke="#d9e0e7"/>
+<text x="82" y="178.75" font-size="14" text-anchor="end">90,000</text>
+<line x1="92" x2="682" y1="115.0" y2="115.0" stroke="#d9e0e7"/>
+<text x="82" y="120.0" font-size="14" text-anchor="end">120,000</text>
+<text x="92.0" y="377" font-size="14" text-anchor="middle">0</text>
+<text x="190.33333333333331" y="377" font-size="14" text-anchor="middle">1</text>
+<text x="288.66666666666663" y="377" font-size="14" text-anchor="middle">2</text>
+<text x="387.0" y="377" font-size="14" text-anchor="middle">3</text>
+<text x="485.3333333333333" y="377" font-size="14" text-anchor="middle">4</text>
+<text x="583.6666666666667" y="377" font-size="14" text-anchor="middle">5</text>
+<text x="682.0" y="377" font-size="14" text-anchor="middle">6</text>
+<text x="92" y="107" font-size="14" >費用（円）</text>
+<text x="387.0" y="407" font-size="16" text-anchor="middle">運用開始からの月数</text>
+<polyline points="92.00,350.00 190.33,310.83 288.67,271.67 387.00,232.50 485.33,193.33 583.67,154.17 682.00,115.00" fill="none" stroke="#2563eb" stroke-width="3" />
+<polyline points="92.00,314.75 190.33,293.21 288.67,271.67 387.00,250.12 485.33,228.58 583.67,207.04 682.00,185.50" fill="none" stroke="#b45309" stroke-width="3" stroke-dasharray="8,5"/>
+<line x1="288.66666666666663" x2="288.66666666666663" y1="271.6666666666667" y2="350" stroke="#64748b" stroke-dasharray="3,4"/>
+<circle cx="288.66666666666663" cy="271.6666666666667" r="6" fill="#fff" stroke="#172033" stroke-width="2"/>
+<rect x="300.66666666666663" y="223.66666666666669" width="186" height="36" rx="5" fill="#f1f5f9"/>
+<text x="310.66666666666663" y="247.66666666666669" font-size="15" font-weight="bold">2か月で同額</text>
+<text x="24" y="443" font-size="13" >説明用の仮想値です。Azureの価格・実測結果・品質同等性を示しません。</text>
+</g></svg>

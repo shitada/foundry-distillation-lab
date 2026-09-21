@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="460" viewBox="0 0 720 460" role="img" aria-labelledby="title desc">
+<title id="title">図1：どれくらい使うと月額が安くなるか</title>
+<desc id="desc">月額運用費の比較。初期費用は含めません。。月500件で同額</desc>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" fill="#172033">
+<text x="24" y="32" font-size="23" font-weight="bold">図1：どれくらい使うと月額が安くなるか</text>
+<text x="24" y="61" font-size="15" >月額運用費の比較。初期費用は含めません。</text>
+<line x1="28" x2="68" y1="86" y2="86" stroke="#2563eb" stroke-width="3"/>
+<text x="78" y="92" font-size="16" >教師モデル</text>
+<line x1="305" x2="345" y1="86" y2="86" stroke="#b45309" stroke-width="3" stroke-dasharray="8,5"/>
+<text x="355" y="92" font-size="16" >学習済みの生徒モデル</text>
+<line x1="92" x2="682" y1="350.0" y2="350.0" stroke="#d9e0e7"/>
+<text x="82" y="355.0" font-size="14" text-anchor="end">0</text>
+<line x1="92" x2="682" y1="291.25" y2="291.25" stroke="#d9e0e7"/>
+<text x="82" y="296.25" font-size="14" text-anchor="end">5,000</text>
+<line x1="92" x2="682" y1="232.5" y2="232.5" stroke="#d9e0e7"/>
+<text x="82" y="237.5" font-size="14" text-anchor="end">10,000</text>
+<line x1="92" x2="682" y1="173.75" y2="173.75" stroke="#d9e0e7"/>
+<text x="82" y="178.75" font-size="14" text-anchor="end">15,000</text>
+<line x1="92" x2="682" y1="115.0" y2="115.0" stroke="#d9e0e7"/>
+<text x="82" y="120.0" font-size="14" text-anchor="end">20,000</text>
+<text x="92.0" y="377" font-size="14" text-anchor="middle">0</text>
+<text x="239.5" y="377" font-size="14" text-anchor="middle">250</text>
+<text x="387.0" y="377" font-size="14" text-anchor="middle">500</text>
+<text x="534.5" y="377" font-size="14" text-anchor="middle">750</text>
+<text x="682.0" y="377" font-size="14" text-anchor="middle">1,000</text>
+<text x="92" y="107" font-size="14" >費用（円）</text>
+<text x="387.0" y="407" font-size="16" text-anchor="middle">1か月の問い合わせ件数</text>
+<polyline points="92.00,350.00 239.50,291.25 387.00,232.50 534.50,173.75 682.00,115.00" fill="none" stroke="#2563eb" stroke-width="3" />
+<polyline points="92.00,244.25 239.50,238.38 387.00,232.50 534.50,226.62 682.00,220.75" fill="none" stroke="#b45309" stroke-width="3" stroke-dasharray="8,5"/>
+<line x1="387.0" x2="387.0" y1="232.5" y2="350" stroke="#64748b" stroke-dasharray="3,4"/>
+<circle cx="387.0" cy="232.5" r="6" fill="#fff" stroke="#172033" stroke-width="2"/>
+<rect x="399.0" y="184.5" width="186" height="36" rx="5" fill="#f1f5f9"/>
+<text x="409.0" y="208.5" font-size="15" font-weight="bold">月500件で同額</text>
+<text x="24" y="443" font-size="13" >説明用の仮想値です。Azureの価格・実測結果・品質同等性を示しません。</text>
+</g></svg>
