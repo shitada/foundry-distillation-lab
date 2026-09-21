@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="660" viewBox="0 0 640 660" role="img" aria-labelledby="title desc">
+  <title id="title">蒸留を試す条件と採用する条件</title>
+  <desc id="desc">枝分かれのない六段階の判断図。学習前に投資の意味と追加学習の理由を確認し、教師ありファインチューニングと評価を実施する。学習後は必要品質、待ち時間と運用条件、今後の費用の利点を確認し、すべての必須条件を満たした範囲で学習済みの生徒モデルを使用する。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="640" height="660" fill="#ffffff"/>
+  <g stroke="#64748b" stroke-width="2" fill="none">
+    <line x1="320" y1="94" x2="320" y2="108" marker-end="url(#arrow)"/>
+    <line x1="320" y1="194" x2="320" y2="210"/>
+    <line x1="320" y1="242" x2="320" y2="256" marker-end="url(#arrow)"/>
+    <line x1="320" y1="342" x2="320" y2="356" marker-end="url(#arrow)"/>
+    <line x1="320" y1="442" x2="320" y2="456" marker-end="url(#arrow)"/>
+    <line x1="320" y1="542" x2="320" y2="556" marker-end="url(#arrow)"/>
+  </g>
+  <g fill="#eff6ff" stroke="#93b5e7">
+    <rect x="20" y="16" width="600" height="76" rx="10"/>
+    <rect x="20" y="116" width="600" height="76" rx="10"/>
+    <rect x="20" y="264" width="600" height="76" rx="10"/>
+    <rect x="20" y="364" width="600" height="76" rx="10"/>
+    <rect x="20" y="464" width="600" height="76" rx="10"/>
+    <rect x="20" y="564" width="600" height="76" rx="10"/>
+  </g>
+  <g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" text-anchor="middle" fill="#172033">
+    <text x="320" y="47" font-size="20" font-weight="bold">1. 学習・評価へ投資する意味がある</text>
+    <text x="320" y="72" font-size="16">利用量・運用期間・削減効果の見込みから予算を決める</text>
+
+    <text x="320" y="147" font-size="20" font-weight="bold">2. 追加学習する理由がある</text>
+    <text x="320" y="172" font-size="16">学習前の生徒モデルだけでは必要な品質や効果を満たせない</text>
+
+    <text x="320" y="231" font-size="16">教師ありファインチューニング（SFT）・評価を実施</text>
+
+    <text x="320" y="295" font-size="20" font-weight="bold">3. 学習済みモデルが必要な品質を満たす</text>
+    <text x="320" y="320" font-size="16">業務上の正しさと重大な違反について、事前の基準を満たす</text>
+
+    <text x="320" y="395" font-size="20" font-weight="bold">4. 待ち時間・運用条件を満たす</text>
+    <text x="320" y="420" font-size="16">想定する使い方で、許容する待ち時間と運用条件を満たす</text>
+
+    <text x="320" y="495" font-size="20" font-weight="bold">5. 今後使う構成として、費用面の利点がある</text>
+    <text x="320" y="520" font-size="16">実測から運用費を見積もり、今後の追加導入費も比較する</text>
+
+    <text x="320" y="595" font-size="20" font-weight="bold">6. 学習済みの生徒モデルを使用する</text>
+    <text x="320" y="620" font-size="16">すべての必須条件を満たした業務・利用条件の範囲で採用</text>
+  </g>
+</svg>

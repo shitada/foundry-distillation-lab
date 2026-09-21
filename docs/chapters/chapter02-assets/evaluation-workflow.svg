@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="756" viewBox="0 0 760 756" role="img" aria-labelledby="title desc">
+<title id="title">評価②：最初の依頼から対応全体を任せる</title>
+<desc id="desc">問い合わせと業務上の初期状態から、一つの評価対象モデルが次の行動を選び、ツールを実際に動かして結果を受け取り、再び判断する。最後の回答までの操作、結果、時間、使用量を確認する。返金は模擬処理であり、途中で正しい履歴を与え直さない。</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L7,4 L0,8 Z" fill="#64748b"/></marker></defs>
+<rect width="100%" height="100%" fill="#fff"/>
+<g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif">
+<rect x="24" y="12" width="84" height="32" rx="16" fill="#1d4ed8"/>
+<text x="66" y="34" font-size="18" text-anchor="middle" fill="#fff" font-weight="bold">評価②</text>
+<text x="124" y="36" font-size="24" text-anchor="start" fill="#172033" font-weight="bold">最初の依頼から、対応全体を任せる</text>
+<rect x="24" y="62" width="712" height="112" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="380" y="89" font-size="19" text-anchor="middle" fill="#172033" font-weight="bold">モデルへ渡す：顧客の最初の依頼</text>
+<text x="380" y="117" font-size="17" text-anchor="middle" fill="#172033">「破損した商品を返品して、返金してほしい」</text>
+<text x="380" y="151" font-size="16" text-anchor="middle" fill="#172033">業務側の準備：注文・在庫の初期状態と業務ルール</text>
+<polyline points="110,175 110,223" fill="none" stroke="#64748b" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="36" y="231" width="300" height="124" rx="12" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.5"/>
+<text x="186" y="263" font-size="20" text-anchor="middle" fill="#172033" font-weight="bold">評価対象モデル</text>
+<text x="186" y="293" font-size="16" text-anchor="middle" fill="#172033">確認する・計算する・回答する</text>
+<text x="186" y="324" font-size="16" text-anchor="middle" fill="#172033">自分が得た結果を使って判断</text>
+<rect x="424" y="231" width="300" height="124" rx="12" fill="#fff7ed" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="574" y="263" font-size="20" text-anchor="middle" fill="#172033" font-weight="bold">業務ツールを実行</text>
+<text x="574" y="292" font-size="16" text-anchor="middle" fill="#172033">注文照会・返品条件の確認</text>
+<text x="574" y="320" font-size="16" text-anchor="middle" fill="#172033">金額計算・返金処理（模擬）</text>
+<polyline points="278,231 278,206 574,206 574,223" fill="none" stroke="#64748b" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="428" y="196" font-size="15" text-anchor="middle" fill="#172033" font-weight="bold">呼び出し指示</text>
+<polyline points="574,356 574,398 230,398 230,363" fill="none" stroke="#64748b" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="402" y="389" font-size="15" text-anchor="middle" fill="#172033" font-weight="bold">実行結果を受け取り、再び判断</text>
+<polyline points="92,356 92,445" fill="none" stroke="#64748b" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="105" y="431" font-size="15" text-anchor="start" fill="#172033">回答を選んだら</text>
+<rect x="24" y="453" width="712" height="74" rx="12" fill="#eff6ff" stroke="#60a5fa" stroke-width="1.5"/>
+<text x="380" y="483" font-size="20" text-anchor="middle" fill="#172033" font-weight="bold">最終的な対応・回答</text>
+<text x="380" y="510" font-size="16" text-anchor="middle" fill="#172033">実際に行った対応と、その結果を顧客へ説明</text>
+<polyline points="380,528 380,553" fill="none" stroke="#64748b" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="24" y="562" width="712" height="78" rx="12" fill="#f5f3ff" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="380" y="592" font-size="19" text-anchor="middle" fill="#172033" font-weight="bold">採点：途中の操作と、最終的な対応</text>
+<text x="380" y="620" font-size="16" text-anchor="middle" fill="#172033">途中の誤り・処理時間・全呼び出しの使用量も確認</text>
+<text x="380" y="665" font-size="14" text-anchor="middle" fill="#172033">一つのモデルに一件の対応を任せ、開始から回答までを記録</text>
+<rect x="24" y="680" width="712" height="60" rx="10" fill="#fffbeb"/>
+<text x="380" y="706" font-size="18" text-anchor="middle" fill="#172033" font-weight="bold">途中で正しい履歴に差し替えない。</text>
+<text x="380" y="729" font-size="15" text-anchor="middle" fill="#172033">実際の判断とツールの結果が、次の判断へ引き継がれる。</text>
+</g></svg>

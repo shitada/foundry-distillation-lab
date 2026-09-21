@@ -25,16 +25,16 @@
 
 ## 全工程と読む順序
 
-業務・評価基準を固定 → teacher履歴を収集・検査 → 重複を跨がせず分割 → teacher/baseを評価 → SFT → fine_tunedを同条件で評価 → 業務全体を人間確認 → 費用と採用判断、の順です。品質不合格なら費用が安くても採用しません。途中の費用・データ不足なら保留します。
+業務・評価基準を固定 → 教師モデルの履歴を収集・検査 → 重複を跨がせず分割 → 学習前の生徒モデルを評価 → 教師ありファインチューニング → 学習済みの生徒モデルを同条件で評価 → 3者で業務全体を評価・人間確認 → 費用と採用判断、の順です。品質不合格なら費用が安くても採用しません。途中の費用・データ不足なら保留します。
 
 | 章 | 現在地・実行入口 | 主な出力と判断 |
 |---|---|---|
 | [01 蒸留と目的](docs/chapters/01-introduction.md) | 全工程を把握 | 仮想例と実測を区別 |
-| [02 指標と実験設計](docs/chapters/02-measurement.md) | 3者・二段階の設計 | 品質ゲートと停止基準 |
+| [02 蒸留の効果をどう確かめるか](docs/chapters/02-measurement.md) | 評価の仕組みと結果の使い道を理解 | 比較対象・二つの評価・採用判断の関係 |
 | [03 小売業務](docs/chapters/03-retail.md) | 日本語contractと業務素材 | 正しい対応と不正操作の境界 |
-| [04 環境と安全](docs/chapters/04-environment.md) | インストール、各`--help` | 予算・承認・所有権記録 |
-| [05 teacher履歴と分割](docs/chapters/05-data.md) | `prepare_data.py`、`collect.py` | 分割・監査とholdout |
-| [06 SFTと次の行動](docs/chapters/06-training.md) | `train.py`、`evaluate.py` | 評価①の差分 |
+| [04 環境・実験条件と安全](docs/chapters/04-environment.md) | 実行環境と実験計画を準備 | 比較条件・判断基準・予算・承認・停止条件 |
+| [05 教師の履歴と分割](docs/chapters/05-data.md) | `prepare_data.py`、`collect.py` | 分割・監査と最終評価用データの管理 |
+| [06 追加学習と次の行動](docs/chapters/06-training.md) | `train.py`、`evaluate.py` | 評価①の学習前後の差分 |
 | [07 業務全体の評価](docs/chapters/07-end-to-end.md) | `evaluate.py`、`deployment.py` | 評価②・人間レビュー |
 | [08 総費用](docs/chapters/08-cost.md) | `report.py` | CSV / JSON / SVG |
 | [09 採用判断](docs/chapters/09-decision.md) | 生成された`decision.md` | 採用・条件付き・見送り・保留 |

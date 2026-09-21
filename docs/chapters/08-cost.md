@@ -4,17 +4,26 @@
 品質の証拠を確認してから、同じ業務量で経済性を比較します。品質未確認でも計算練習はできますが、採用判断とは切り離します。
 
 ## 目的
-推論のtoken代だけでなく、固定費・初期費用・失敗を含めて検討します。
+文章量に応じた推論費だけでなく、固定費・初期費用・失敗を含めて検討します。
 
 ## 前提
 レポーターは**集計済みJSON**を読みます。手入力のほか、保存済み評価reportからusageと最終判定を取り込む限定adapterがあります。Azure価格取得、請求照合、生traceの直接集計、通貨換算はしません。実測用テンプレートの`actual`は利用者の申告区分で、証拠が揃ったことの認証ではありません。
 
 ## 実施内容
+
+### 使用量と価格の対応を確認する
+
+第7章で記録した、問い合わせへの対応全体の使用量を費用へ換算します。モデルが処理する文章量は、通常、**トークン**という単位で記録され、文字数とは異なります。入力・出力と、再利用された入力（キャッシュ）を分け、それぞれに対応する単価を使います。
+
+一件の問い合わせの途中でモデルを何度も呼び出した場合は、すべてを合計します。失敗や回復のための呼び出しも費用に含め、使用量が取れなかったものを無料として扱いません。前章の観測数と未確認件数を引き継ぎ、集計の範囲が変わっていないか確認します。
+
+### 保存済みの入力から費用を計算する
+
 ```powershell
 python scripts\report.py --input examples\illustrative\cost-input.json --output runs\cost-example
 ```
 
-出力は`report.json`、`costs.csv`、`volume.csv/svg`、`cumulative.csv/svg`、`payback.csv/svg`、`input.json`、`decision.md`です。再実行には新しい出力先を選びます。[スキーマと架空図表](../../examples/illustrative/README.md)を参照し、実測時は`configs\examples\cost-actual-template.json`をコピーして別ファイルへ記入します。
+出力は`report.json`、`costs.csv`、`volume.csv/svg`、`cumulative.csv/svg`、`payback.csv/svg`、`input.json`、`decision.md`です。再実行には新しい出力先を選びます。[スキーマと架空図表](https://github.com/shitada/foundry-distillation-lab/blob/main/examples/illustrative/README.md)を参照し、実測時は`configs\examples\cost-actual-template.json`をコピーして別ファイルへ記入します。
 
 第7章の採点reportへ接続する場合は次を使います。最初のコマンドは費用入力JSONを新規作成するだけ、次が図表生成です。
 
@@ -27,12 +36,12 @@ adapterは元reportと設定のbytesをSHA256へ結び付け、3者の行数・�
 
 これは均等な評価枠の平均であって、運用カテゴリ比で再重み付けした推計ではありません。供給された行のcategoryは監査に残しますが、欠けたカテゴリを補作せず、集計カテゴリ比は`null`、運用の仮定は`evaluation_projection.production_category_mix`へ別記します。観測した`origin: local_tool_loop`と明示的な`provenance.runtime.kind: local_direct_model`を照合し、Hostedでは`origin: hosted_capture_import`と`provenance.runtime.kind: foundry_hosted_agent`を照合します。注入runnerの`origin`だけでは実モデル呼出しを証明できず、provenanceがなければunknownです。未知・混在・設定した想定runtimeとの不一致なら分岐点/回収期間も保留します。cohortやcase/tool条件が違う場合も同様です。
 
-評価①は次の行動1回の測定なので、顧客要求全体のtoken平均や業務成功率へ拡大できません。adapterは**`mode=e2e`のreportだけを受け付け、評価①を拒否**します。合成例や由来不明の記録を実測へ格上げせず、すべての接続出力を**評価cohortの予測、本番の証拠ではない**と表示します。価格・固定費・初期費用・運用件数・品質ゲートは設定で別途確定する必要があります。
+評価①は次の行動1回の測定なので、その費用を一件の問い合わせ全体の費用として使えません。問い合わせ全体の使用量平均や業務成功率へ拡大せず、評価②の全呼び出しの記録を使います。adapterは**`mode=e2e`のreportだけを受け付け、評価①を拒否**します。合成例や由来不明の記録を実測へ格上げせず、すべての接続出力を**評価cohortの予測、本番の証拠ではない**と表示します。価格・固定費・初期費用・運用件数・品質ゲートは設定で別途確定する必要があります。
 
 | 区分 | 集計方法 |
 |---|---|
 | 推論 | 1顧客要求に属する全モデル呼出しを合計。失敗・回復も含む |
-| cache | input tokenの内数。非cache分だけ通常入力単価、cache分はcache単価 |
+| 再利用された入力 | 入力トークンの内数。再利用していない分だけ通常の入力単価、再利用分にはキャッシュ単価を使う |
 | 変動費 | agent、tool/log/storageの要求当たり費用。推論と重複計上しない |
 | 固定費 | model hosting、agent、tool/log/storageの月額。稼働時間を根拠にする |
 | 初期費用 | teacher生成、学習、初期評価、その他。共通費の配賦を明記 |
@@ -49,7 +58,9 @@ adapterは元reportと設定のbytesをSHA256へ結び付け、3者の行数・�
 入力根拠と再計算可能なCSV/JSON/SVG、常に`hold`から始まる判断ドラフトです。図にはILLUSTRATIVEまたはACTUALを表示します。
 
 ## 解釈
-節約があっても品質不合格なら採用しません。初期費用が不明でも月額分岐は計算可能ですが、回収期間は不明です。費用だけでbaseよりfine_tunedを優先しません。
+節約があっても品質不合格なら採用しません。初期費用が不明でも月額分岐は計算可能ですが、回収期間は不明です。費用だけで学習前の生徒モデルより学習済みの生徒モデルを優先しません。
+
+学習前には、想定する利用量と期間で初期投資に意味があるかを概算します。学習・評価が済んだ時点では、そのためにすでに払った費用と、今後発生する運用費・追加導入費を区別して採用を判断します。初期費用込みの累積費用と回収期間は、投資全体の採算を振り返る記録として残します。
 
 ## 完了条件
 すべての費目に根拠または不明理由があり、品質条件・件数・期間を変えた感度分析を別runで残します。
