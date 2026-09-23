@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="580" viewBox="0 0 800 580" role="img" aria-labelledby="title desc">
+  <title id="title">履歴を確認し、四つの用途に分ける</title>
+  <desc id="desc">実際の教師モデルの実行履歴、または手順確認用の同梱サンプルを入力する。形式と出所を確認して取り込み、内容を確認した履歴を整形・分割する。学習用、検証用、改善用評価、最終評価用に分け、改善用評価から次の行動の問題も作る。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="800" height="580" fill="#ffffff"/>
+  <g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" text-anchor="middle" fill="#172033">
+    <text x="400" y="33" font-size="24" font-weight="bold">履歴を確認し、四つの用途に分ける</text>
+    <rect x="24" y="62" width="352" height="96" rx="12" fill="#eff6ff" stroke="#60a5fa"/>
+    <text x="200" y="96" font-size="21" font-weight="bold">教師モデルの実行履歴</text>
+    <text x="200" y="125" font-size="16">会話と、実際のツール操作の記録</text>
+    <rect x="424" y="62" width="352" height="96" rx="12" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="600" y="96" font-size="21" font-weight="bold">同梱サンプル</text>
+    <text x="600" y="125" font-size="16">手順を確認するための説明用データ</text>
+    <text x="400" y="181" font-size="15">目的に応じて、どちらかを入力にする</text>
+  </g>
+  <g fill="none" stroke="#64748b" stroke-width="2">
+    <polyline points="200,159 200,193 400,193"/>
+    <polyline points="600,159 600,193 400,193"/>
+    <line x1="400" y1="193" x2="400" y2="213" marker-end="url(#arrow)"/>
+    <line x1="400" y1="293" x2="400" y2="315" marker-end="url(#arrow)"/>
+    <polyline points="400,403 400,422 110,422 110,434" marker-end="url(#arrow)"/>
+    <polyline points="400,422 306,422 306,434" marker-end="url(#arrow)"/>
+    <polyline points="400,422 502,422 502,434" marker-end="url(#arrow)"/>
+    <polyline points="400,422 698,422 698,434" marker-end="url(#arrow)"/>
+  </g>
+  <g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" text-anchor="middle" fill="#172033">
+    <rect x="72" y="222" width="656" height="70" rx="12" fill="#fff7ed" stroke="#f59e0b"/>
+    <text x="400" y="251" font-size="21" font-weight="bold">1. 形式と出所を確認して取り込む</text>
+    <text x="400" y="277" font-size="16">元の履歴は残し、取り込んだ会話と記録ファイルを作る</text>
+    <rect x="72" y="324" width="656" height="78" rx="12" fill="#fff7ed" stroke="#f59e0b"/>
+    <text x="400" y="356" font-size="21" font-weight="bold">2. 内容を確認し、整形・分割する</text>
+    <text x="400" y="383" font-size="16">注文・会話のまとまりを保ち、用途ごとに分ける</text>
+    <rect x="24" y="442" width="172" height="92" rx="10" fill="#eff6ff" stroke="#60a5fa"/>
+    <text x="110" y="470" font-size="20" font-weight="bold">学習用</text>
+    <text x="110" y="494" font-size="14">train.jsonl</text>
+    <text x="110" y="519" font-size="14">追加学習に使う</text>
+    <rect x="220" y="442" width="172" height="92" rx="10" fill="#eff6ff" stroke="#60a5fa"/>
+    <text x="306" y="470" font-size="20" font-weight="bold">検証用</text>
+    <text x="306" y="494" font-size="14">validation.jsonl</text>
+    <text x="306" y="519" font-size="14">学習状態・候補を確認</text>
+    <rect x="416" y="442" width="172" height="92" rx="10" fill="#f5f3ff" stroke="#a78bfa"/>
+    <text x="502" y="470" font-size="20" font-weight="bold">改善用評価</text>
+    <text x="502" y="494" font-size="14">development.jsonl</text>
+    <text x="502" y="519" font-size="14">失敗を調べて改善する</text>
+    <rect x="612" y="442" width="172" height="92" rx="10" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="698" y="470" font-size="20" font-weight="bold">最終評価用</text>
+    <text x="698" y="494" font-size="14">final.jsonl</text>
+    <text x="698" y="519" font-size="14">最後の判断まで保管</text>
+    <text x="400" y="564" font-size="15">改善用評価のデータから、評価①で使う「次の行動」の問題も作る</text>
+  </g>
+</svg>
