@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="350" viewBox="0 0 680 350" role="img" aria-labelledby="title desc">
+  <title id="title">手元の準備とクラウドでの実行</title>
+  <desc id="desc">手元のパソコンでPython環境、データ整形、計画、保存済み結果の採点と費用集計、実験記録の保存を行う。Microsoft Foundryでは教師モデルの呼び出し、教師ありファインチューニング、モデルやエージェントの実行、作成した資源の管理を行う。クラウド操作は対象・入力・予算・期限を確認してから実施する。</desc>
+  <rect width="680" height="350" fill="#ffffff"/>
+  <g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" text-anchor="middle" fill="#172033">
+    <text x="340" y="32" font-size="23" font-weight="bold">手元の準備と、クラウドでの実行を分ける</text>
+    <rect x="20" y="60" width="300" height="208" rx="12" fill="#eff6ff" stroke="#60a5fa"/>
+    <rect x="360" y="60" width="300" height="208" rx="12" fill="#fff7ed" stroke="#f59e0b"/>
+    <text x="170" y="94" font-size="22" font-weight="bold">手元のパソコン</text>
+    <text x="170" y="130" font-size="16">Python環境の準備</text>
+    <text x="170" y="165" font-size="16">データの整形・実験計画の作成</text>
+    <text x="170" y="200" font-size="16">保存済み結果の採点・費用集計</text>
+    <text x="170" y="235" font-size="16">実験の記録を保存</text>
+    <text x="510" y="94" font-size="22" font-weight="bold">Microsoft Foundry</text>
+    <text x="510" y="130" font-size="16">教師モデルへ問い合わせ</text>
+    <text x="510" y="165" font-size="16">教師ありファインチューニング</text>
+    <text x="510" y="200" font-size="16">モデル・エージェントを実行</text>
+    <text x="510" y="235" font-size="16">作成した資源を管理</text>
+    <rect x="20" y="286" width="640" height="47" rx="10" fill="#f1f5f9"/>
+    <text x="340" y="315" font-size="16" font-weight="bold">クラウド操作の前に、対象・入力・予算・期限を確認する</text>
+  </g>
+</svg>
