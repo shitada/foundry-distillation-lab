@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from ..io import canonical, read_json, sha256
-from ..safety import Approval, Journal, nonnegative
+from ..safety import Journal
 
 
 def project_endpoint(value):
@@ -33,26 +33,13 @@ def attempt_key(operation, payload):
     return operation + "-" + hashlib.sha256(canonical(payload).encode()).hexdigest()[:32]
 
 
-def execute_once(*, execute, approval_path, operation, input_path, target_id,
-                 run_dir, payload, estimated_cost, send, attempt_id=None):
+def execute_once(*, operation, input_path, target_id, run_dir, payload, send, attempt_id=None):
     """`send` must lazily construct its client; never retry an uncertain operation."""
-    if not execute:
-        raise ValueError("Network access requires --execute")
-    if approval_path is None:
-        raise ValueError("Network access requires --approval")
-    nonnegative(estimated_cost, "estimated_cost")
-    approval = Approval.load(Path(approval_path), operation, Path(input_path))
-    approval.assert_target(target_id)
     attempt_id = attempt_id or attempt_key(operation, payload)
     journal = Journal(Path(run_dir))
     # Existing starts prohibit resend, including transport failures and lost receipts.
     journal.start(attempt_id, {"operation": operation, "target": target_id,
                               "input_sha256": sha256(input_path), "request": payload})
-    try:
-        approval.reserve(estimated_cost)
-    except Exception:
-        journal.finish(attempt_id, "not_sent", {"reason": "reservation_rejected"})
-        raise
     try:
         result = send()
     except BaseException as exc:

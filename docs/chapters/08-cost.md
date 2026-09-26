@@ -17,6 +17,8 @@
 
 一件の問い合わせの途中でモデルを何度も呼び出した場合は、すべてを合計します。失敗や回復のための呼び出しも費用に含め、使用量が取れなかったものを無料として扱いません。前章の観測数と未確認件数を引き継ぎ、集計の範囲が変わっていないか確認します。
 
+自動採点に使ったモデルの使用量と時間は、各採点先の`grading.json`に別途保存されます。採点用モデルの実際の配置に適用される入力・出力・キャッシュの単価で費用に換算し、費用設定の`initial.evaluation`へ含めます。これは実験の初期評価費であり、顧客への対応1件あたりの推論使用量・時間・運用費には加えません。採点用モデルの使用量が欠けている場合も、0円にはしません。
+
 ### 保存済みの入力から費用を計算する
 
 ```powershell
@@ -25,10 +27,10 @@ python scripts\report.py --input examples\illustrative\cost-input.json --output 
 
 出力は`report.json`、`costs.csv`、`volume.csv/svg`、`cumulative.csv/svg`、`payback.csv/svg`、`input.json`、`decision.md`です。再実行には新しい出力先を選びます。[スキーマと架空図表](https://github.com/shitada/foundry-distillation-lab/blob/main/examples/illustrative/README.md)を参照し、実測時は`configs\examples\cost-actual-template.json`をコピーして別ファイルへ記入します。
 
-第7章の採点reportへ接続する場合は次を使います。最初のコマンドは費用入力JSONを新規作成するだけ、次が図表生成です。
+第7章で`combine`した、教師・学習前・学習後の3者分の評価②を使います。個別モデルの`scores.json`や、第6章の評価①は渡しません。最初のコマンドは費用入力JSONの作成、次が図表生成です。
 
 ```powershell
-python scripts\report.py --prepare-evaluation --input runs\e2e-scores.json --config configs\examples\cost-evaluation.json --output runs\evaluation-cost-input.json
+python scripts\report.py --prepare-evaluation --input runs\e2e-combined\scores.json --config configs\examples\cost-evaluation.json --output runs\evaluation-cost-input.json
 python scripts\report.py --input runs\evaluation-cost-input.json --output runs\evaluation-cost-report
 ```
 
@@ -53,6 +55,8 @@ adapterは元reportと設定のbytesをSHA256へ結び付け、3者の行数・�
 冒頭の架空値では500件/月が運用分岐、1,000件/月で9,000円/月の節約、追加初期18,000円で2か月回収です。累積運用費の図には初期費用を含めず、回収図には含めます。baseとfine_tunedの推論費が同じでも、学習初期費用が違うので回収曲線は別です。
 
 成功単価は人間確認済み成功率を月間件数へ適用した**予測値**です。レビュー未完了、成功0件、対象件数0なら未定義です。レビュー対象と運用カテゴリ比が異なればその予測は使えません。
+
+自動採点で全ケースの比較ができても、人による業務成功の確認を代替したことにはなりません。自動判定のみの結果から費用図表を作る場合、採用判断は暫定・保留のままとし、確認済み成功単価を確定しません。
 
 ## 出力
 入力根拠と再計算可能なCSV/JSON/SVG、常に`hold`から始まる判断ドラフトです。図にはILLUSTRATIVEまたはACTUALを表示します。

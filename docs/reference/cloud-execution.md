@@ -2,7 +2,7 @@
 
 この版の検証は **コード生成・標準ライブラリのmockテスト・オフラインCLI** までです。
 ファイル送信、学習、推論、Azure配置、Hosted Agentの起動・コンテナーbuildは実施していません。
-元デモの過去の実行結果を本リポジトリの実績と扱いません。ここにある設定例は承認でも価格情報でもありません。
+元デモの過去の実行結果を本リポジトリの実績と扱いません。設定例の接続先・モデルは置換が必要です。価格は実行時に確認します。
 
 ## 1. 依存と認証
 
@@ -11,18 +11,18 @@
 
 | 用途 | SDK境界 | 状態 |
 |---|---|---|
-| 制御側: upload/submit/status | rootの任意extra `cloud`: `openai>=3,<4`, `azure-ai-projects>=2.5,<3`, `azure-identity>=1.25,<2` | lazy import、API形状を公式資料と照合、サービス未検証 |
+| 制御側: start/status | rootの任意extra `cloud`: `openai>=3,<4`, `azure-ai-projects>=2.5,<3`, `azure-identity>=1.25,<2` | lazy import、API形状を公式資料と照合、サービス未検証 |
 | Hosted Agent | `deploy/hosted-agent/requirements.txt`。OpenAI **2.54.0**、Projects **2.3.0**、agent-framework-core **1.15.0**、foundry **1.11.0**、hosting **1.0.0b260821** 等を分離固定 | 元のskeletonの組合せ。今回の新コードで互換性・cloud動作は未検証 |
 | ARM | Python `urllib` + lazy `DefaultAzureCredential`。API version **2024-10-01** | payload/mock検証、サービス未検証 |
 
-Hosted側の依存をrootと一環境へ混ぜません。別途承認した追試環境でのみ
+Hosted側の依存をrootと一環境へ混ぜません。追試用の環境で
 `python -m pip install ".[cloud]"`、Hosted側は専用コンテナー/環境に導入します。
 SDK解決後の実バージョン、OS、リージョン、モデルversion、料金取得日をrunに記録してください。
 依存の固定はそのサービスのPreview機能が安定版であるという意味ではありません。
 
 APIキーの読取・設定・保存は実装していません。すべて`DefaultAzureCredential`を利用し、
 HostedではマネージドIDを推奨します。必要なRBAC、project endpoint、モデル利用可否、
-quotaとリージョンは、今回とは別承認のオンラインpreflightで確認してください。
+利用するモデルとリージョンを実行前に確認してください。
 
 ## 2. オフライン操作
 
@@ -32,11 +32,6 @@ quotaとリージョンは、今回とは別承認のオンラインpreflightで
 ```powershell
 # 同梱データはSCRIPTED説明用例。teacher観測・性能証拠ではない
 python scripts\prepare_data.py --input data\samples\traces.jsonl --output runs\data --seed 42
-
-# 構造・split監査を行ったJSONLから学習payloadを準備する（品質/個人情報の人間レビューは別途必要）
-python scripts\train.py prepare `
-  --train runs\data\train.jsonl --validation runs\data\validation.jsonl `
-  --config configs\examples\training.json --output-dir runs\training-prepared
 
 # fine-tuned model IDを人間が選択し、設定を別versionで確定してからpayloadを生成
 python scripts\deployment.py prepare `
@@ -67,85 +62,57 @@ order/conversationの連結groupを60/15/15/残余に分け、10独立group以�
 manifestの`quality_review_approved: false`を確認してください。1カテゴリだけの例なので業務範囲を
 代表せず、学習・評価へ進むための業務品質/個人情報レビューは未完了です。
 
-train/validationはUTF-8 JSONLを読み、UTF-8 BOM付きの新ファイルに正規化します。
-元入力hash・正規化後hash・bytes・行数・設定hashを`upload-plan.json`に保存します。
+学習の`start`は、送信前にtrain/validationのUTF-8 JSONLを読み、UTF-8 BOM付きの新ファイルに正規化します。
+元入力・正規化後の内部識別値、bytes・行数・設定を`upload-plan.json`へ自動保存します。
 10件未満のtrain、空行、完全一致するtrain/validation行、想定外のトップレベルフィールドを拒否します。
 これは**構造検査**であり、業務品質・意味的重複・最終評価漏洩・個人情報レビューの代替ではありません。
 評価正解やケースmetadataはSFT payloadへ含めません。
 
-## 3. 有料/ネットワーク操作の承認
+## 3. 実行前の確認と保存する記録
 
-ネットワーク操作には`--execute`と`--approval <path>`の両方が必要です。
-承認JSONは`Approval`共通schemaで、`approved: true`、`operation`、
-`input_sha256`、`target`、`max_requests`、`max_cost`、`currency`、
-timezone付き`expires_at`を人間が別途確定します。承認ファイルはGit管理しません。
+対象・入力・呼び出し上限と、学習・推論・配置の保持費を確認します。
+見積りは使用量や請求とは分け、不明な値を0と扱いません。
+コマンドは入力・設定のsnapshotとサービスの受付記録（receipt）を自動保存します。
+内部識別値と送信記録は、取り違えや重複送信を防ぐために自動管理します。
 
-| operation | 承認する入力hash | target | request予約 |
-|---|---|---|---|
-| `training-upload` | upload-plan全体 | `project_endpoint|model` | 各ファイルuploadにつき1件 |
-| `training-submit` | submit-plan全体 | `project_endpoint|model` | job作成1件 |
-| `training-upload` / `training-submit` のstatus | 対象file/job receipt | `project_endpoint|model` | GET観測ごとに1件 |
-| `collect` | collection-plan全体 | `project_endpoint|model` | 内部model POSTごとに1件（外側の会話数ではない） |
-| `collect`（外側のazd invoke） | invocation-plan全体（promptとcollection-plan hashを内包） | version付きagent endpoint完全一致 | 外側invoke1件、会話全体の保守的費用を予約 |
-| `deploy` | deployment-plan全体 | 完全なARM deployment resource ID | 存在確認GET + PUTで2件、別statusはGET1件 |
-| `cleanup` | ownership manifest全体 | 同じ完全ARM resource ID | 所有確認GET + DELETEで2件 |
-
-例: `target`は`https://example.services.ai.azure.com/api/projects/example|teacher-deployment`
-のように完全一致します。modelとendpointを別々に承認して取り違えることはできません。
-予約費用は設定にある保守的な見積額を承認通貨で使います。
-実際の請求額ではありません。学習/配置は全体の保守的見積、収集は1 model requestの上限見積を
-事前に決めます。既知usageと`actual_cost: null` / `unknown_cost: true`を分離して保存し、
-未知費用を0扱いしません。GETやファイルuploadの予約0は「実請求0を確認した」という意味ではありません。
-
-各送信前にcreate-only journalを永続化し、予算・期限・件数を予約します。
-approval-stateも永続化するため、同じ承認でコマンドを起動し直しても件数をリセットしません。
-同じrunの同じ書込payloadを再実行すると既存journalにより停止します。
-予算不足で未送信になった場合も既存journalを削除して使い回しません。
-**タイムアウト/切断/応答保存失敗は結果不明**です。SDKの自動retryを0にし、writeは再送しません。
-別run・別承認の作成を結果不明writeの再送手段として使わないでください。
-
-期限切れは次の送信/ローカル監視を止めます。既に送ったtraining jobやdeploymentの課金停止、
-キャンセル、削除を保証しません。別途クラウド側の確認と明示cleanupが必要です。
+**タイムアウト・切断・応答保存失敗では、受け付けられたか不明です。**
+SDKの自動retryを無効にし、変更を伴う要求を自動で送り直しません。
+記録の削除や別runによる再送ではなく、元の要求をサービス側で確認してください。
+読み取り専用の状態確認は繰り返せます。ローカルの待機終了は、クラウドの学習停止や資源削除ではありません。
 
 ## 4. 学習の実行入口（今回は未実施）
 
-例の承認ファイルはこのリポジトリには存在しません。自分の入力hash・対象・予算・期限を承認してから使います。
+第5章の分割済みデータと、接続先・モデル・学習条件を記入した設定を使います。
+具体例は[第6章の実践手順](../how-to/06-training-and-evaluation.md#3-学習を開始し状態を確認する)を参照してください。
 
 ```powershell
-python scripts\train.py upload --plan runs\training-prepared\upload-plan.json `
-  --role train --run-dir runs\training --execute --approval runs\upload-approval.json
-python scripts\train.py upload --plan runs\training-prepared\upload-plan.json `
-  --role validation --run-dir runs\training --execute --approval runs\upload-approval.json
-
-# 各upload receiptを入力hashとする読取承認を別途作成。processedであることを確認する
-python scripts\train.py status --receipt runs\training\train-upload-receipt.json `
-  --observation-id file-check-1 --run-dir runs\file-status `
-  --execute --approval runs\file-read-approval.json
-
-python scripts\train.py prepare-submit --upload-plan runs\training-prepared\upload-plan.json `
-  --train-receipt runs\training\train-upload-receipt.json `
-  --validation-receipt runs\training\validation-upload-receipt.json --output runs\submit-plan.json
-python scripts\train.py submit --plan runs\submit-plan.json --run-dir runs\training `
-  --execute --approval runs\submit-approval.json
-python scripts\train.py status --receipt runs\training\job-receipt.json `
-  --observation-id job-check-1 --run-dir runs\job-status `
-  --execute --approval runs\job-read-approval.json
+python scripts\train.py start --train runs\data\train.jsonl `
+  --validation runs\data\validation.jsonl --config runs\training-config.json `
+  --run-dir runs\training
+python scripts\train.py status --run-dir runs\training --wait `
+  --timeout-seconds 3600 --poll-seconds 10
 ```
 
-validation fileにも同じstatus確認を行います。`prepare-submit`はreceiptのtarget・role・元plan hash・
-data hashを照合しますが、**file processing完了のオンライン確認は自動で行いません**。
-serviceがまだprocessedでないfileを受け付けると仮定しないでください。
-job statusはGETだけで、待機ループ・自動再学習・最良checkpoint選択・自動配置はありません。
-結果のloss等を確認し、改善用評価からcheckpointを人間が選び、最終評価を使って選び直さないでください。
+`start`は入力を検査・保存し、学習用と検証用をアップロードします。
+両ファイルがprocessedになるのを待ってから学習を1回依頼します。
+`status`はGETだけで、`--wait`なしなら1回、ありなら指定間隔・時間内で状態を確認します。
+待機の時間切れでも`start`を送り直しません。事前に決めた検証データと基準でcheckpointを選び、
+理由を記録します。最終評価は候補選びに使わず、配置はFoundryの画面で行います。
+
+run直下に`config.json`、`train.jsonl`、`validation.jsonl`、`upload-plan.json`、
+両データの`*-upload-receipt.json`、`submit-plan.json`、`job-receipt.json`を保存します。
+送信記録は`attempts`、読み取りの観測は`observations`に保存します。
+`status`は失敗・時間切れ・学習ジョブ未確認の場合に0以外の終了コードを返します。
+job receiptの保存だけが失敗した場合は、成功した送信記録からIDを確認できます。学習依頼を再送する機能ではありません。
 
 既知IDがあればreceiptを起点とするGETで照合します。IDのない結果不明upload/jobは、
-別承認のportal/公式SDKのGET inventory照合でIDと所有を調べます。このCLIはIDを捏造したり、
+portal/公式SDKのGET inventory照合でIDと所有を調べます。このCLIはIDを捏造したり、
 曖昧な一致を採用したり、POSTで照合したりしません。判断できなければ停止のままです。
 
 ## 5. trace取得ルート（Preview境界を明示）
 
 `collect.py`はFoundryの未確認なinvocations Preview URLを推測して直接呼びません。
-`--invoke`だけは公式の`azd ai agent invoke`を起動する別承認のnetwork modeです。
+`--invoke`は公式の`azd ai agent invoke`を起動するnetwork modeです。
 「問い合わせを送ったのでtrace収集成功」とも表示しません。次の2つの**実データ**入力を扱います。
 
 1. `--format conversation`: 既存の観測からexportしたJSONL。
@@ -161,16 +128,17 @@ job statusはGETだけで、待機ループ・自動再学習・最良checkpoint
    内部reasoningは学習メッセージへ変換しません。既知usageは各model call分を保存します。
    `previous_response_id`依存、欠落call、failed/incomplete、未完了tool sequenceは拒否します。
 
-Hosted取得は、別途検証したHosted Agentへ**承認済みpromptを1回だけ送信**する手順です。
+Hosted取得は、別途検証したHosted Agentへ**計画内のpromptを1回だけ送信**する手順です。
 `prompts.jsonl`は各行を`{"conversation_id":"...","category":"返品","prompt":"..."}`にします。
-containerには`COLLECTION_PLAN`, `COLLECTION_APPROVAL`, `COLLECTION_RUN_DIR`で
-plan/承認/永続書込先を渡します。planと承認はimageへ焼き込まず、実行環境に安全にmountします。
-`main.py --execute`で初めて起動できます。設定と承認がなければ起動失敗になります。
+`cloud-collection.json`では、1会話あたりの`max_model_calls: 12`と`max_tool_calls: 24`を設定します。
+上限に達したら停止します。費用の見積りは設定の実行条件とは分けて確認し、実際の使用量で振り返ります。
+containerには`COLLECTION_PLAN`, `COLLECTION_RUN_DIR`でplanと永続書込先を渡します。
+planはimageへ焼き込まず、実行環境へmountします。`main.py`は設定を読み、入力と呼び出し回数を制限します。
 
 ### 具体的な将来のinvoke入口（今回未実行）
 
 配置済みagentの**version付きendpoint**を`cloud-invocation.json`のコピーへ明示し、
-collection-planに存在する`conversation_id`を選びます。endpointは承認したproject配下でなければ
+collection-planに存在する`conversation_id`を選びます。endpointは設定したproject配下でなければ
 拒否し、versionの一致も確認します。例の`REPLACE_...`を実入力IDへ置換してください。
 
 ```powershell
@@ -179,33 +147,32 @@ python scripts\collect.py --prepare-invocation `
   --input runs\collection-plan\collection-plan.json `
   --config configs\examples\cloud-invocation.json --output-dir runs\one-invocation
 
-# network: 別途、人間が外側invokeを承認した後だけ。今回は実行しない
+# network: 対象・入力・費用を確認して実行
 python scripts\collect.py --invoke --input runs\one-invocation\invocation-plan.json `
-  --output-dir runs\invocation --execute --approval runs\invocation-approval.json
+  --output-dir runs\invocation
 ```
 
-外側の承認は`operation: collect`、`input_sha256`はinvocation-planの実ファイルhash、
-`target`は`https://<account>.services.ai.azure.com/api/projects/<project>/agents/<agent>/versions/<version>`。
-内側にmountするcollection-plan承認とは別の承認です。外側は会話全体、内側はmodel requestごとの
-保守的予算を制限します。これらは制御上の予約であり、費用レポートで二重に実費計上しません。
+外側の接続先は`https://<account>.services.ai.azure.com/api/projects/<project>/agents/<agent>/versions/<version>`。
+planに入力と接続先を固定し、内部のモデル呼び出しにも回数上限を設けます。
+使用量・費用は外側と内側の同じ処理を二重計上しません。
 
 wrapperが実際に組み立てるCLIは、現在のMicrosoft Learnで確認した次の形式です
-（直接実行すると外側journal/承認を迂回するため、通常は上のwrapperを使用）:
+（実験記録を残すため、通常は上のwrapperを使用）:
 
 ```text
-azd ai agent invoke "<承認済みprompt>" --agent-endpoint "<version付きendpoint>" --version "<version>"
+azd ai agent invoke "<計画内のprompt>" --agent-endpoint "<version付きendpoint>" --version "<version>"
   --protocol responses --new-session --output raw --timeout 300 --no-prompt
 ```
 
 元デモにあった`--new-conversation`ではなく、現行公式資料の`--new-session`を使います。
-wrapperは送信前journal・承認/target/hash/件数/全体費用予約を行い、
+wrapperは入力・対象を照合し、送信前の記録を保存して、
 `shell=False`の1回だけのsubprocessとして実行します。wrapperによる再試行はありません。
 タイムアウト・非zero終了・raw形式不一致は結果不明として再送を拒否します。
 raw応答headers/stderrは保存せず、解析したbodyとusageを`invocation-receipt.json`へ保存します。
 このreceiptは`trace_capture_verified: false`であり、model traceの回収成功を意味しません。
 
 **残る具体的な障壁:** azd Foundry extensionの実インストールversionと上記flags/生HTTP出力形式、
-CLI内部のHTTP retry有無、Entra認証、ResponsesHostServerとserviceの接続、approvalの安全なmount、
+CLI内部のHTTP retry有無、Entra認証、ResponsesHostServerとserviceの接続、planのmount、
 単一replicaの永続volumeとcaptureの回収方法を、今回の新templateでまだ検証していません。
 SDKモデルwriteは`max_retries=0`にしていますが、azd内部のretry設定をSDK設定で制御できるとは
 主張しません。CLIがwriteを自動retryしないことを先に確認するまでこの外側invokeを実行しないでください。
@@ -215,8 +182,8 @@ Hostedサービス配置やvolume構成を自動化する完成テンプレー�
 外側の一つのuser textをplanのhashと照合し、各会話で新しい`RetailSession`を作ります。
 会話継続・履歴・tool result・runtime設定overrideを受け付けません。
 **永続volume・単一replica**を追試条件としてください。共有されないローカルfilesystemで複数replicaを
-動かすと共通journal/予算が保証できません。今回のテンプレートはそのようなdistributed lockを実装していません。
-各内部model POST前に`collect`承認を予約し、response captureを`*.capture.jsonl`へcreate-only保存します。
+動かすと共通の送信記録・回数上限を保証できません。今回のテンプレートはdistributed lockを実装していません。
+各内部model POST前に送信を記録し、response captureを`*.capture.jsonl`へcreate-only保存します。
 失敗時にも同じ問い合わせを自動再送しません。
 
 ### Hosted評価②へ渡す観測証跡
@@ -258,7 +225,7 @@ evidenceの`final_answer`は観測した完了応答からのみ取得します�
 `user_input`、`agent`、`runtime`、`tools`、`answer`、`latency_seconds`、
 normalized `usage`もadapter向けに明示します。agent ID/versionの不明値は`null`です。
 小売packageの公開APIにprivate storeのsnapshot機能はありません。
-代わりに、完了した実回答がありtool例外がない場合だけ、**観測したtool returnの台帳**を
+代わりに、完了した実回答がありtool例外がない場合だけ、**観測したtool returnの記録**を
 `final_state`へ記録します。`terminal`は`answer_only`または`simulation_submitted`、
 `submissions`は実際の`submit_resolution`返値が`処理シミュレーション完了`かつ
 `external_side_effect: false`だったものだけです。
@@ -283,12 +250,12 @@ HTTPX response hookはSSEをterminal responseまでbufferしてからframework�
 streamingの時間特性を変えます。これは収集skeletonであり、本番latency比較の実装ではありません。
 SDK内部の`_client.event_hooks`利用、request path、tool schemaのframework変換、
 Hosted入力プロトコル、永続volume mount、identity/RBAC、container起動、出口認証を
-**小規模の別承認追試で検証するまで使えると断言しません**。
+**実環境で検証するまで使えると断言しません**。
 Hostedサービス自身の配置・永続volume/exportを自動化した完成コマンドは提供していません。
 公式資料の現行プロトコルを確認し、認証・配置を検証するまでライブ収集はブロック扱いです。
 
 stagingは小売code/contractとJSON/安全機構のsupport modulesのみallowlistでコピーします。
-datasets/evaluation/reporting、ケース、oracle、学習data、approval、run履歴を含めません。
+datasets/evaluation/reporting、ケース、oracle、学習data、run履歴を含めません。
 `staging-manifest.json`でhashを記録します。rootをDocker build contextに使わないでください。
 rootのMIT `LICENSE`も内容を変えずstageし、Docker imageへコピーして著作権/許諾表示を保持します。
 
@@ -299,16 +266,16 @@ Hosted Agent基盤/ACR/権限/project全体を作成・削除するコマンド�
 生成planはランダムsuffixと所有tokenを含み、指定model/version/SKU/capacityを固定します。
 
 ```powershell
-python scripts\deployment.py deploy --plan runs\deployment-plan.json --run-dir runs\deployment `
-  --execute --approval runs\deployment-approval.json
-python scripts\deployment.py status --plan runs\deployment-plan.json --observation-id check-1 `
-  --run-dir runs\deployment-status --execute --approval runs\deployment-read-approval.json
+python scripts\deployment.py deploy --plan runs\deployment-plan.json --run-dir runs\deployment
+python scripts\deployment.py status --plan runs\deployment-plan.json `
+  --run-dir runs\deployment-status
 python scripts\deployment.py cleanup --ownership runs\deployment\ownership.json `
-  --run-dir runs\cleanup --execute --approval runs\cleanup-approval.json
+  --run-dir runs\cleanup
 ```
 
 GETが404でなければPUTしません。201 receiptのresource ID・model・SKU・所有tag・
 `systemData.createdAt`が一致したときだけownership manifestを作ります。
+`status`は読み取り専用で、観測記録の識別子は自動生成します。
 cleanupはそのmanifestと元create journalを照合し、再GETで所有tag/model/SKU/createdAtを確認します。
 ETagがなければ削除しません。DELETE成功応答も`deletion_requested_not_verified`です。
 新しいstatus観測で404を確認するまで削除完了・課金停止とは表示しません。
@@ -346,4 +313,4 @@ Azure MCP best-practices discoveryはtimeoutとなったため、クラウド接
 再利用した仕組みは元デモの`fixtures/train_student.py` / `deploy_student.py` /
 `push_prompts.py`、`agent/src/zava-traces-demo/main.py` / `tools.py`、
 `e2e-agent/src/main.py` / `runtime.py` / `requirements.txt`に由来します。
-固定subscription/tenant/endpoint、過去run、deadline、承認、再送例外、評価oracleは持ち込んでいません。
+固定subscription/tenant/endpoint、過去run、deadline、再送例外、評価oracleは持ち込んでいません。

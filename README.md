@@ -2,10 +2,10 @@
 
 日本語の小売・購入後サポートで、**蒸留は本当に役立つか**を品質・時間・総費用から調べる実験教材です。LLM APIの利用経験がある開発者向けの、書籍の章立てに対応する実装とガイドです。書籍の完成原稿ではありません。
 
-**蒸留**とは、強いモデル（teacher）の振る舞いを手本に、別のモデル（student）へ特定の仕事を学習させることです。この教材では、Microsoft Foundryで得たteacherの回答・ツール呼び出し履歴を選別し、studentを教師ありファインチューニング（SFT）します。teacherの重み・内部の思考・仕組みをコピーするものではありません。小さなモデルで品質を維持し、待ち時間や費用を減らすことが目的ですが、**成功は前提にしません**。未学習studentが最良、学習後に悪化、判断保留も正当な結果です。
+**蒸留**とは、強いモデル（teacher）の振る舞いを手本に、別のモデル（student）へ特定の仕事を学習させることです。この教材では、Microsoft Foundryで得たteacherの回答・ツール呼び出し履歴を選別し、studentを教師ありファインチューニングします。teacherの重み・内部の思考・仕組みをコピーするものではありません。小さなモデルで品質を維持し、待ち時間や費用を減らすことが目的ですが、**成功は前提にしません**。未学習studentが最良、学習後に悪化、判断保留も正当な結果です。
 
 > **独立した学習用リポジトリであり、Microsoft公式教材・製品サポートではありません。**
-> クラウドでの学習・推論・デプロイは未検証・未実施です。公開準備やオフライン実行の承認は、クラウド支出の承認ではありません。
+> クラウドでの学習・推論・デプロイは未検証・未実施です。実行前に、対象環境と学習・推論・配置の保持費を確認してください。
 
 ## 蒸留したモデルは、いつ安くなるのか
 
@@ -63,17 +63,17 @@
 
 ## 全工程と読む順序
 
-業務・評価基準を固定 → 教師モデルの履歴を収集・検査 → 重複を跨がせず分割 → 学習前の生徒モデルを評価 → 教師ありファインチューニング → 学習済みの生徒モデルを同条件で評価 → 3者で業務全体を評価・人間確認 → 費用と採用判断、の順です。品質不合格なら費用が安くても採用しません。途中の費用・データ不足なら保留します。
+業務・評価基準を固定 → 教師モデルの履歴を収集・検査 → 重複を跨がせず分割 → 学習前の生徒モデルを評価 → 教師ありファインチューニング → 学習済みの生徒モデルを同条件で評価 → 自動採点・前後比較 → 3者で業務全体を評価 → 費用と採用判断、の順です。自動判定は推定であり、人が確認した業務成功や採用の確定とは分けます。品質不合格なら費用が安くても採用しません。途中の費用・データ不足なら保留します。
 
 | 章 | 現在地・実行入口 | 主な出力と判断 |
 | --- | --- | --- |
 | [01 蒸留と目的](docs/chapters/01-introduction.md) | 全工程を把握 | 仮想例と実測を区別 |
 | [02 蒸留の効果をどう確かめるか](docs/chapters/02-measurement.md) | 評価の仕組みと結果の使い道を理解 | 比較対象・二つの評価・採用判断の関係 |
 | [03 小売業務](docs/chapters/03-retail.md) | 日本語contractと業務素材 | 正しい対応と不正操作の境界 |
-| [04 環境・実験条件と安全](docs/chapters/04-environment.md) | 実行環境と実験計画を準備 | 比較条件・判断基準・予算・承認・停止条件 |
+| [04 環境・実験条件と安全](docs/chapters/04-environment.md) | 実行環境と実験計画を準備 | 比較条件・判断基準・費用見積り・停止条件 |
 | [05 教師の履歴と分割](docs/chapters/05-data.md) | `prepare_data.py`、`collect.py` | 分割・監査と最終評価用データの管理 |
 | [06 追加学習と次の行動](docs/chapters/06-training.md) | `train.py`、`evaluate.py` | 評価①の学習前後の差分 |
-| [07 業務全体の評価](docs/chapters/07-end-to-end.md) | `evaluate.py`、`deployment.py` | 評価②・人間レビュー |
+| [07 業務全体の評価](docs/chapters/07-end-to-end.md) | `evaluate.py`、`deployment.py` | 評価②・自動採点・3者の集計 |
 | [08 総費用](docs/chapters/08-cost.md) | `report.py` | CSV / JSON / SVG |
 | [09 採用判断](docs/chapters/09-decision.md) | 生成された`decision.md` | 採用・条件付き・見送り・保留 |
 | [10 振り返り](docs/chapters/10-lessons.md) | 実験記録 | 再評価計画と限界 |
@@ -90,7 +90,7 @@
 - [ ] 評価report→費用入力adapter、欠測・case/tool/cohort/runtime不一致の保留、fresh reviewのhash照合、公開図表の不変性を含む統合オフライン166テストを実行。公開対象だけのGit index exportと新規`.venv`でも再確認。
 - [ ] [GitHub Actions上のWindows workflow](https://github.com/shitada/foundry-distillation-lab/actions/workflows/offline.yml)でテスト・データ準備・説明用レポート・公開対象検査を実行。
 - [ ] クラウドの認証・リージョン・モデル利用可否・quotaの現地確認。
-- [ ] 有料teacher収集、SFT、モデル/agent配置、実推論の通し検証。
+- [ ] 有料teacher収集、教師ありファインチューニング、モデル/agent配置、実推論の通し検証。
 - [ ] Hostedの実ツール実行とSDKコンテキスト上のcall IDの対応確認。現行captureの名前・引数からの照合は診断用で、これだけの証跡ではツール使用ケースを成功判定しない。
 - [ ] 独立最終holdoutによる品質同等性・費用優位性の実証。
 
@@ -100,10 +100,11 @@
 
 - [費用入力スキーマ](examples/illustrative/README.md) / [実測用テンプレート](configs/examples/cost-actual-template.json)：`null`は不明であり0ではありません。
 - [エージェントへの依頼例](docs/assistance.md) / [トラブルシューティング](docs/troubleshooting/README.md)：合格させるために期待値を変えない。
-- [承認・journalの安全契約](docs/reference/safety.md)：送信前に記録し、結果不明時は再送せず照合する。
+- [第6章の実践手順](docs/how-to/06-training-and-evaluation.md)：共通設定で学習前評価、学習開始・状態確認、配置、学習後評価、内容確認・比較、後片付けを進める。
+- [実行記録と停止](docs/reference/safety.md)：入力・設定と受付記録を自動保存し、結果不明時は再送せず照合する。
 - [クラウド実行境界](docs/reference/cloud-execution.md) / [Hosted Agent追試の前提](deploy/hosted-agent/README.md)：SDK・protocol・identity・永続volumeは未検証。単一replicaが前提で、ARM条件付き操作の保証確認前に共有資源へ実行しない。
-- `runs\`はローカル証跡用。認証cache、個人endpoint、承認記録、生ログ、学習済みartifactを公開しません。
-- 有料学習と推論はそれぞれ件数・金額・期限を計画し、**小規模試行も別途明示承認**します。ローカル処理停止だけではクラウド課金は止まりません。
+- `runs\`はローカル証跡用。認証cache、個人endpoint、生ログ、学習済みartifactを公開しません。
+- 学習・推論・保持費を見積もり、取得できた使用量・実費と分けて確認します。欠落は0ではありません。ローカル処理停止だけではクラウド課金は止まりません。
 - 参照元リポジトリ：[microsoft-foundry/fine-tuning — TracesDistillation](https://github.com/microsoft-foundry/fine-tuning/tree/main/Demos/TracesDistillation)。
 - 公式資料：[fine-tuning considerations](https://learn.microsoft.com/azure/foundry/openai/concepts/fine-tuning-considerations)、[fine-tuning data generation](https://learn.microsoft.com/azure/foundry/fine-tuning/data-generation)。最新の制限は実行前に再確認します。
 - ライセンス・移植元の詳細はルートの`LICENSE`、`THIRD_PARTY_NOTICES.md`と[出典記録](docs/reference/provenance.json)を参照してください。採用元commitのMIT表記をローカルgit objectで照合し、日本語contractと架空店舗素材の元のバイト列を保持しています。参照元リポジトリの現在のHEADを取得できたとの主張ではありません。本リポジトリの新規コード・教材文はMIT扱いです。将来の書籍原稿の権利条件は別に定めます。

@@ -1,0 +1,6 @@
+{
+  "base_url": "https://YOUR-RESOURCE.openai.azure.com/openai/v1/",
+  "deployment": "grader",
+  "max_completion_tokens": 1024,
+  "timeout_seconds": 60
+}

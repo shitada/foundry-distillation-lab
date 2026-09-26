@@ -15,8 +15,8 @@ MUTATION_TOOLS = {"submit_resolution"}
 
 
 def evidence_sha256(record):
-    """Review binds to immutable evidence, excluding only the review itself."""
-    evidence = {key: value for key, value in record.items() if key != "review"}
+    """Human and model reviews independently bind to the same raw evidence."""
+    evidence = {key: value for key, value in record.items() if key not in ("review", "model_review")}
     return hashlib.sha256(canonical(evidence).encode("utf-8")).hexdigest()
 
 
@@ -111,6 +111,16 @@ def _finish(score, record):
     score["confirmed_business_success"] = (
         score.get("evaluation_scope") == "e2e" and score["status"] == "confirmed_success")
     score["human_review_required"] = review is None
+    from .grading import validated_review
+    automatic = validated_review(record, score)
+    score["model_review"] = automatic
+    has_automatic = isinstance(record, dict) and "model_review" in record
+    score["automatic_decision"] = (
+        "unknown" if technical else "failure" if quality else
+        automatic["decision"] if automatic else "unknown")
+    score["assessment_source"] = (
+        "deterministic" if technical or quality else "model" if automatic else
+        "invalid_model_review" if has_automatic else "human" if review else "unreviewed")
     return score
 
 
@@ -448,6 +458,10 @@ def _summary(rows):
         "confirmed_success_rate": counts["confirmed_success"] / len(rows) if rows else None,
         "confirmed_business_successes": sum(row["confirmed_business_success"] for row in rows),
         "automatic_check_passes": sum(row["deterministic_checks_passed"] for row in rows),
+        "automatic_decision_counts": {
+            decision: sum(row["automatic_decision"] == decision for row in rows)
+            for decision in ("success", "failure", "needs_review", "unknown")},
+        "assessment_source_counts": dict(Counter(row["assessment_source"] for row in rows)),
         "runtime_provenance": {
             "classification": next(iter(runtime_kinds)) if len(runtime_kinds) == 1 else
                               "mixed" if runtime_kinds else "unknown",

@@ -1,14 +1,13 @@
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
 import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
 
 from foundry_distillation_lab.datasets.prepare import normalize, partitions, prepare
-from foundry_distillation_lab.io import read_json, sha256, write_json, write_jsonl
+from foundry_distillation_lab.io import read_json, write_jsonl
 from foundry_distillation_lab.retail import RetailSession
-from foundry_distillation_lab.safety import Approval, Journal
+from foundry_distillation_lab.safety import Journal, nonnegative, timestamp
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("generate_samples", ROOT / "scripts" / "generate_samples.py")
@@ -128,38 +127,16 @@ class DatasetTests(unittest.TestCase):
 
 
 class SafetyTests(unittest.TestCase):
-    def approval(self, root, **overrides):
-        write_json(root / "payload.json", {"example": True})
-        data = {"approved": True, "operation": "test", "target": "test-model",
-                "input_sha256": sha256(root / "payload.json"), "currency": "USD",
-                "max_requests": 2, "max_cost": 1,
-                "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()}
-        data.update(overrides)
-        write_json(root / "approval.json", data)
-        return Approval.load(root / "approval.json", "test", root / "payload.json")
+    def test_numeric_values_cannot_hide_unknown_or_invalid_costs(self):
+        for value in (None, True, -1, float("nan"), float("inf"), "0"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                nonnegative(value, "cost")
+        self.assertEqual(nonnegative(0, "cost"), 0)
 
-    def test_durable_budget_and_target(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            approval = self.approval(root)
-            approval.assert_target("test-model")
-            with self.assertRaises(ValueError):
-                approval.assert_target("other")
-            approval.reserve(.6)
-            reloaded = Approval.load(root / "approval.json", "test", root / "payload.json")
-            with self.assertRaisesRegex(ValueError, "limit"):
-                reloaded.reserve(.5)
-            reloaded.reserve(.4)
-            with self.assertRaisesRegex(ValueError, "limit"):
-                reloaded.reserve(0)
-
-    def test_invalid_approval_rejected(self):
-        for override in ({"approved": "true"}, {"max_requests": True},
-                         {"expires_at": "2000-01-01T00:00:00Z"}, {"max_cost": -1},
-                         {"input_sha256": "wrong"}, {"currency": ""}):
-            with self.subTest(override=override), tempfile.TemporaryDirectory() as temporary:
-                with self.assertRaises(ValueError):
-                    self.approval(Path(temporary), **override)
+    def test_timestamps_require_timezone(self):
+        self.assertIsNotNone(timestamp("2026-09-26T00:00:00Z").tzinfo)
+        with self.assertRaises(ValueError):
+            timestamp("2026-09-26T00:00:00")
 
     def test_attempt_cannot_be_replayed_or_overwritten(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -173,21 +150,10 @@ class SafetyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 journal.start("../escape", {})
 
-    def test_changed_approval_and_abandoned_lock_stop(self):
+    def test_unstarted_attempt_cannot_be_finished(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            approval = self.approval(root)
-            state = root / ".approval-state"
-            state.mkdir()
-            lock = state / (sha256(root / "approval.json") + ".lock")
-            lock.write_text("abandoned", encoding="utf-8")
-            with self.assertRaises(FileExistsError):
-                approval.reserve(.1)
-            self.assertEqual(lock.read_text(encoding="utf-8"), "abandoned")
-            with (root / "approval.json").open("a", encoding="utf-8") as stream:
-                stream.write("\n")
-            with self.assertRaisesRegex(ValueError, "changed"):
-                approval.reserve(.1)
+            with self.assertRaisesRegex(ValueError, "unstarted"):
+                Journal(temporary).finish("missing", "completed", {})
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Generate an offline ARM plan; deployment and cleanup require explicit approval."""
+"""Prepare an ARM plan offline; deploy/status/cleanup perform the named operation."""
 
 import argparse
 import json
@@ -18,25 +18,21 @@ def main():
     prepare.add_argument("--output", type=Path, required=True)
     for name in ("deploy", "status", "cleanup"):
         command = commands.add_parser(name)
-        command.add_argument("--execute", action="store_true")
-        command.add_argument("--approval", type=Path)
         command.add_argument("--run-dir", type=Path, required=True)
         if name == "cleanup":
             command.add_argument("--ownership", type=Path, required=True)
         else:
             command.add_argument("--plan", type=Path, required=True)
-        if name == "status":
-            command.add_argument("--observation-id", required=True)
     args = parser.parse_args()
     if args.command == "prepare":
         result = deployment.build_plan(read_json(args.config))
         write_json(args.output, result)
     else:
-        options = dict(execute=args.execute, approval_path=args.approval, run_dir=args.run_dir)
+        options = dict(run_dir=args.run_dir)
         if args.command == "cleanup":
             result = deployment.cleanup(args.ownership, **options)
         elif args.command == "status":
-            result = deployment.status(args.plan, observation_id=args.observation_id, **options)
+            result = deployment.status(args.plan, **options)
         else:
             result = deployment.deploy(args.plan, **options)
     print(json.dumps(result, ensure_ascii=False, indent=2))

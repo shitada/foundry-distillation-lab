@@ -8,7 +8,6 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 import uuid
 
 from ..io import read_json, write_json
-from ..safety import nonnegative
 from .execution import attempt_key, checked_plan, execute_once
 
 API_VERSION = "2024-10-01"
@@ -20,7 +19,7 @@ RESOURCE = re.compile(
 
 def build_plan(config):
     required = {"subscription_id", "resource_group", "account", "deployment_prefix",
-                "model_name", "model_version", "sku", "capacity", "estimated_cost"}
+                "model_name", "model_version", "sku", "capacity"}
     if set(config) != required:
         raise ValueError("Deployment config fields must exactly match the documented schema")
     if str(uuid.UUID(config["subscription_id"])) != config["subscription_id"].lower():
@@ -33,16 +32,13 @@ def build_plan(config):
             raise ValueError(f"Explicit {key} required")
     if type(config["capacity"]) is not int or config["capacity"] < 1:
         raise ValueError("capacity must be a positive integer")
-    nonnegative(config["estimated_cost"], "estimated_cost")
-    if config["estimated_cost"] <= 0:
-        raise ValueError("Deployment requires a positive conservative hosting-cost reservation")
     owner = uuid.uuid4().hex
     name = config["deployment_prefix"] + "-" + owner[:12]
     resource_id = (f"/subscriptions/{config['subscription_id']}/resourceGroups/"
                    f"{config['resource_group']}/providers/Microsoft.CognitiveServices/"
                    f"accounts/{config['account']}/deployments/{name}")
     return {"schema_version": 1, "kind": "deployment", "api_version": API_VERSION,
-            "resource_id": resource_id, "owner": owner, "estimated_cost": config["estimated_cost"],
+            "resource_id": resource_id, "owner": owner,
             "body": {"tags": {"distillation-lab-owner": owner},
                      "sku": {"name": config["sku"], "capacity": config["capacity"]},
                      "properties": {"model": {"format": "OpenAI", "name": config["model_name"],
@@ -51,8 +47,7 @@ def build_plan(config):
 
 
 def validate_plan(plan):
-    if (set(plan) != {"schema_version", "kind", "api_version", "resource_id", "owner",
-                     "estimated_cost", "body"}
+    if (set(plan) != {"schema_version", "kind", "api_version", "resource_id", "owner", "body"}
             or plan.get("schema_version") != 1 or plan.get("kind") != "deployment"
             or plan.get("api_version") != API_VERSION
             or not RESOURCE.fullmatch(plan.get("resource_id", ""))
@@ -73,9 +68,6 @@ def validate_plan(plan):
             or not isinstance(body["sku"]["name"], str) or not body["sku"]["name"]
             or type(body["sku"]["capacity"]) is not int or body["sku"]["capacity"] < 1):
         raise ValueError("Explicit model/version and positive SKU capacity are required")
-    nonnegative(plan["estimated_cost"], "estimated_cost")
-    if plan["estimated_cost"] <= 0:
-        raise ValueError("Deployment requires a positive conservative hosting-cost reservation")
     return plan
 
 
@@ -108,13 +100,12 @@ class ArmTransport:
                         "etag": response.headers.get("ETag") or parsed.get("etag")}
 
 
-def _request(plan, method, *, operation, input_path, approval_path, execute, run_dir,
-             transport, body=None, headers=None, estimated_cost=0, attempt_id=None):
+def _request(plan, method, *, operation, input_path, run_dir,
+             transport, body=None, headers=None, attempt_id=None):
     payload = {"method": method, "resource_id": plan["resource_id"],
                "body": body, "headers": headers or {}}
-    return execute_once(execute=execute, approval_path=approval_path,
-        operation=operation, input_path=input_path, target_id=plan["resource_id"],
-        run_dir=run_dir, payload=payload, estimated_cost=estimated_cost,
+    return execute_once(operation=operation, input_path=input_path, target_id=plan["resource_id"],
+        run_dir=run_dir, payload=payload,
         send=lambda: transport.request(method, plan["resource_id"], body, headers),
         attempt_id=attempt_id)
 
@@ -126,16 +117,15 @@ def matches(plan, body):
             and all(body.get("sku", {}).get(k) == v for k, v in plan["body"]["sku"].items()))
 
 
-def deploy(plan_path, *, execute=False, approval_path=None, run_dir, transport=None):
+def deploy(plan_path, *, run_dir, transport=None):
     plan = validate_plan(checked_plan(plan_path, "deployment"))
     transport = transport or ArmTransport()
-    common = dict(operation="deploy", input_path=plan_path, approval_path=approval_path,
-                  execute=execute, run_dir=run_dir, transport=transport)
+    common = dict(operation="deploy", input_path=plan_path, run_dir=run_dir, transport=transport)
     previous = _request(plan, "GET", **common)
     if previous["http_status"] != 404:
         raise ValueError("Deployment name must not already exist; no PUT sent")
     response = _request(plan, "PUT", **common, body=plan["body"],
-                        headers={"If-None-Match": "*"}, estimated_cost=plan["estimated_cost"])
+                        headers={"If-None-Match": "*"})
     body = response["body"]
     created_at = body.get("systemData", {}).get("createdAt")
     if response["http_status"] != 201 or not matches(plan, body) or not created_at:
@@ -149,15 +139,14 @@ def deploy(plan_path, *, execute=False, approval_path=None, run_dir, transport=N
     return ownership
 
 
-def status(plan_path, *, execute=False, approval_path=None, run_dir, observation_id,
-           transport=None):
+def status(plan_path, *, run_dir, transport=None):
     plan = validate_plan(checked_plan(plan_path, "deployment"))
     return _request(plan, "GET", operation="deploy", input_path=plan_path,
-        approval_path=approval_path, execute=execute, run_dir=run_dir,
-        transport=transport or ArmTransport(), attempt_id="deploy-status-" + observation_id)
+        run_dir=run_dir, transport=transport or ArmTransport(),
+        attempt_id="deploy-status-" + uuid.uuid4().hex)
 
 
-def cleanup(ownership_path, *, execute=False, approval_path=None, run_dir, transport=None):
+def cleanup(ownership_path, *, run_dir, transport=None):
     ownership = checked_plan(ownership_path, "owned-deployment")
     plan = validate_plan(ownership["plan"])
     creation_id = ownership["creation_attempt"]
@@ -169,8 +158,7 @@ def cleanup(ownership_path, *, execute=False, approval_path=None, run_dir, trans
             or ownership["creation_response"]["http_status"] != 201):
         raise ValueError("Ownership lacks matching successful creation journal")
     transport = transport or ArmTransport()
-    common = dict(operation="cleanup", input_path=ownership_path, approval_path=approval_path,
-                  execute=execute, run_dir=run_dir, transport=transport)
+    common = dict(operation="cleanup", input_path=ownership_path, run_dir=run_dir, transport=transport)
     current = _request(plan, "GET", **common)
     if (current["http_status"] != 200 or not matches(plan, current["body"])
             or current["body"].get("systemData", {}).get("createdAt") != ownership["created_at"]

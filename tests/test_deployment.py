@@ -1,5 +1,4 @@
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import shutil
 import sys
@@ -9,7 +8,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from foundry_distillation_lab.io import read_json, sha256, write_json
+from foundry_distillation_lab.io import read_json, write_json
 from foundry_distillation_lab.training import deployment
 
 
@@ -51,42 +50,32 @@ class DeploymentTests(unittest.TestCase):
                     raise
                 time.sleep(0.1 * 2 ** retry)
 
-    def approval(self, source, operation):
-        path = self.work / (operation + "-approval.json")
-        write_json(path, {"approved": True, "operation": operation, "input_sha256": sha256(source),
-                         "target": self.plan["resource_id"], "max_requests": 2,
-                         "max_cost": 100, "currency": "JPY",
-                         "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()})
-        return path
-
     def test_offline_payload_has_unique_owner_and_explicit_model(self):
         self.assertIn(self.plan["owner"][:12], self.plan["resource_id"])
         self.assertEqual(self.plan["body"]["properties"]["versionUpgradeOption"], "NoAutoUpgrade")
         self.assertEqual(self.plan["api_version"], "2024-10-01")
 
-    def test_no_execute_no_transport(self):
+    def test_invalid_plan_does_not_open_transport(self):
         arm = Arm(self.plan)
+        invalid = deepcopy(self.plan)
+        invalid["resource_id"] = "/subscriptions/wrong"
+        path = self.work / "invalid.json"
+        write_json(path, invalid)
         with self.assertRaises(ValueError):
-            deployment.deploy(self.path, run_dir=self.work, transport=arm)
+            deployment.deploy(path, run_dir=self.work, transport=arm)
         self.assertFalse(arm.calls)
 
     def test_existing_resource_never_overwritten(self):
         arm = Arm(self.plan, existing=True)
-        approval = self.approval(self.path, "deploy")
         with self.assertRaises(ValueError):
-            deployment.deploy(self.path, execute=True, approval_path=approval,
-                              run_dir=self.work, transport=arm)
+            deployment.deploy(self.path, run_dir=self.work, transport=arm)
         self.assertEqual([c[0] for c in arm.calls], ["GET"])
 
     def test_create_cleanup_with_ownership(self):
         arm = Arm(self.plan)
-        approval = self.approval(self.path, "deploy")
-        deployment.deploy(self.path, execute=True, approval_path=approval,
-                          run_dir=self.work, transport=arm)
+        deployment.deploy(self.path, run_dir=self.work, transport=arm)
         ownership = self.work / "ownership.json"
-        cleanup_approval = self.approval(ownership, "cleanup")
-        deployment.cleanup(ownership, execute=True, approval_path=cleanup_approval,
-                           run_dir=self.work / "cleanup", transport=arm)
+        deployment.cleanup(ownership, run_dir=self.work / "cleanup", transport=arm)
         self.assertEqual([c[0] for c in arm.calls], ["GET", "PUT", "GET", "DELETE"])
         self.assertEqual(arm.calls[1][3], {"If-None-Match": "*"})
         self.assertEqual(arm.calls[-1][3], {"If-Match": '"one"'})
@@ -95,23 +84,51 @@ class DeploymentTests(unittest.TestCase):
 
     def test_replaced_resource_not_deleted(self):
         arm = Arm(self.plan)
-        approval = self.approval(self.path, "deploy")
-        deployment.deploy(self.path, execute=True, approval_path=approval,
-                          run_dir=self.work, transport=arm)
+        deployment.deploy(self.path, run_dir=self.work, transport=arm)
         ownership = self.work / "ownership.json"
-        cleanup_approval = self.approval(ownership, "cleanup")
         arm.body["systemData"]["createdAt"] = "2026-01-02T00:00:00Z"
         with self.assertRaises(ValueError):
-            deployment.cleanup(ownership, execute=True, approval_path=cleanup_approval,
-                               run_dir=self.work / "cleanup", transport=arm)
+            deployment.cleanup(ownership, run_dir=self.work / "cleanup", transport=arm)
         self.assertNotIn("DELETE", [c[0] for c in arm.calls])
 
     def test_status_only_get(self):
         arm = Arm(self.plan)
-        approval = self.approval(self.path, "deploy")
-        deployment.status(self.path, execute=True, approval_path=approval,
-                          run_dir=self.work, observation_id="one", transport=arm)
-        self.assertEqual([c[0] for c in arm.calls], ["GET"])
+        for _ in range(3):
+            deployment.status(self.path, run_dir=self.work, transport=arm)
+        self.assertEqual([c[0] for c in arm.calls], ["GET", "GET", "GET"])
+        self.assertEqual(len(list((self.work / "attempts").glob("*.result.json"))), 3)
+
+    def test_create_and_cleanup_are_not_replayed(self):
+        arm = Arm(self.plan)
+        deployment.deploy(self.path, run_dir=self.work, transport=arm)
+        with self.assertRaises(FileExistsError):
+            deployment.deploy(self.path, run_dir=self.work, transport=arm)
+        self.assertEqual([c[0] for c in arm.calls], ["GET", "PUT"])
+        ownership = self.work / "ownership.json"
+        deployment.cleanup(ownership, run_dir=self.work / "cleanup", transport=arm)
+        with self.assertRaises(FileExistsError):
+            deployment.cleanup(ownership, run_dir=self.work / "cleanup", transport=arm)
+        self.assertEqual([c[0] for c in arm.calls], ["GET", "PUT", "GET", "DELETE"])
+
+    def test_uncertain_creation_is_not_replayed(self):
+        arm = Arm(self.plan)
+        request = arm.request
+
+        def uncertain(method, *args):
+            response = request(method, *args)
+            if method == "PUT":
+                raise TimeoutError("Response was lost")
+            return response
+
+        arm.request = uncertain
+        with self.assertRaises(TimeoutError):
+            deployment.deploy(self.path, run_dir=self.work, transport=arm)
+        with self.assertRaises(FileExistsError):
+            deployment.deploy(self.path, run_dir=self.work, transport=arm)
+        self.assertEqual([c[0] for c in arm.calls], ["GET", "PUT"])
+        results = [read_json(path) for path in (self.work / "attempts").glob("*.result.json")]
+        self.assertIn("outcome_unknown", [result["status"] for result in results])
+        self.assertFalse((self.work / "ownership.json").exists())
 
     def test_tampered_target_rejected(self):
         self.plan["resource_id"] = "/subscriptions/not-a-resource"

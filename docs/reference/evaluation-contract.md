@@ -25,7 +25,7 @@ python scripts\evaluate.py --mode next-action --prepare-next-actions --input run
 
 `--prepare-next-actions` は development の JSONL を評価用 bundle に変換する**オフライン準備**です。`kind` / `ground_truth` を `expected.kind` / `expected.calls` に対応させ、元の reference・metadata・case tools を残します。元ファイルの SHA-256 と `quality_review_approved:false` を記録し、`records:[]` にします。予測・成績・teacher 履歴は生成しません。live フラグとは併用できません。
 
-`data\samples\traces.jsonl` は20件の SCRIPTED な架空の配送問い合わせで、teacher 生成・性能実績ではありません。60/15/15/残りのグループ分割から development のみを評価①の準備に使い、final は調整に使いません。変換直後の bundle を通常採点すれば、全モデルが未試行と表示されるのが正しい挙動です。モデル結果を実際に収集してから別の新規 bundle に記録してください。有料実行には review、inference 設定、モデル別入力・承認を別途用意します。単一カテゴリのサンプルだけで業務カバレッジを満たしたとは判断できません。
+`data\samples\traces.jsonl` は20件の SCRIPTED な架空の配送問い合わせで、teacher 生成・性能実績ではありません。60/15/15/残りのグループ分割から development のみを評価①の準備に使い、final は調整に使いません。変換直後の bundle を通常採点すれば、全モデルが未試行と表示されるのが正しい挙動です。実測には、共通の評価設定と対象モデルを指定する`run`を使います。単一カテゴリのサンプルだけで業務カバレッジを満たしたとは判断できません。
 
 ## 共通 JSON bundle
 
@@ -37,7 +37,7 @@ python scripts\evaluate.py --mode next-action --prepare-next-actions --input run
 | `records` | 保存済み結果配列。`case_id` × `model` ごとに最大1件 |
 | `evidence_kind` | 架空例・新規実測などの出所。未指定なら `unspecified` |
 
-全 `cases × models` が分母です。欠けた結果も `technical_failure` / `missing_record` として残し、試行済みの良い結果だけを分母にしません。別々に実行したモデルを比較する場合は、同一のケース・ツール・条件の bundle に保存済み records を集めて再採点してください。重複レコードや予定外のケース・モデルは入力エラーです。条件混在を自動的に同等と判断しません。
+全 `cases × models` が分母です。欠けた結果も `technical_failure` / `missing_record` として残し、試行済みの良い結果だけを分母にしません。`run`は指定モデルの全ケースを対象にし、別々のrunは`compare`で比較します。共通の問題・ツール・設定を自動照合するため、recordsの転記は不要です。重複レコードや予定外のケース・モデルは入力エラーです。
 
 JSON の重複キー、NaN、Infinity、オーバーフロー数値は拒否します。採点用 schema は標準の JSON Schema 実装全体ではなく、業務ツール用の閉じた部分集合です:
 
@@ -50,6 +50,24 @@ JSON の重複キー、NaN、Infinity、オーバーフロー数値は拒否し�
 
 ## 評価①: 次の行動
 
+### 第6章の標準設定
+
+[第6章の実践手順](../how-to/06-training-and-evaluation.md)では、共通の設定ファイルに接続先・配置名・生成条件を記入します。問題ファイルは学習前後で共用します。
+
+### 実測結果のラベル
+
+`evidence_kind`は、保存する結果の種類を示す記録用ラベルです。モデルへの指示や学習パラメーターではありません。
+
+実行コードがラベルを設定するため、利用者の編集は不要です。実測ラベルはモデルを呼び出したことを示すだけで、問題の代表性や品質合格を意味しません。同梱サンプルにモデルが答えた場合も、サンプル由来という出所情報を保持します。
+
+### 費用の見積りと実測
+
+評価①は1問につき1回のモデル呼び出しです。対象モデル・地域・配置方式の単価、入力トークン数の見込み、出力上限から費用を見積もります。学習・配置の保持費は別に確認します。料金は[Azure OpenAI料金表](https://azure.microsoft.com/en-us/pricing/details/azure-openai/)で実行時に確認してください。
+
+実行後はAPIの`usage`と請求を確認します。見積りは実費ではなく、使用量や請求が未取得なら不明のまま残します。比較条件の問題・ツール・生成設定を費用に合わせて途中で変えません。
+
+### 入出力と採点
+
 ケースは `messages` と `expected: {"kind":"tool"|"text", "calls":[...]}` を持ちます。正解 call は `{"name":"...", "arguments":{...}}`。実行時の `messages` は既存履歴そのものを使い、ツールは実行しません。
 
 保存済み record は `case_id`, `model`, `status:"completed"`, `message`, `usage`, `latency_seconds` を持ちます。message は `content` と `tool_calls` を持つ OpenAI 型で、tool call は function 内の名前と JSON 文字列 arguments、または上記の正規化形を受け付けます。
@@ -57,7 +75,7 @@ JSON の重複キー、NaN、Infinity、オーバーフロー数値は拒否し�
 - `strict_tool_match`: ツール名・引数の完全一致。引数オブジェクトのキー順は不問。並列 call の順番は不問だが重複回数は保持。
 - `schema_valid`: 既知のツール名か、必須項目・型・列挙値・未知キーなどに違反していないか。
 - `predicted_call_count`: 出力された call 数。壊れた message は件数も未知。
-- テキストは存在だけを確認し、意味・日本語の正確さ・適切な確認質問かどうかは人間レビューへ分離。
+- ルール検査はテキストの存在を確認します。意味・日本語の正確さ・適切な確認質問かどうかは、`grade`による採点用モデルの評価へ分離します。人による確認は別に記録できます。
 
 寛容な「名前が同じなら8点で合格」の採点はありません。部分点から厳密一致を推測しません。ツール引数の壊れた JSON は品質失敗、取得した message 自体がない場合は技術的失敗です。評価①の人間確認が済んでも、**業務全体の成功は未測定**なので `confirmed_business_success` は false のままです。
 
@@ -81,9 +99,9 @@ JSON の重複キー、NaN、Infinity、オーバーフロー数値は拒否し�
 
 `allowed_mutations` は許可する `submit_resolution` の **名前・引数・result の一致ルール**です。既定は完全一致。必要な送信は `required_calls` にも指定します。計算IDなどは架空業務の決定的な値として期待値へ明示し、実行した結果をそのまま正解へ書き戻しません。`submit_resolution` 以外の状態変更ツールを追加する場合は、`MUTATION_TOOLS` と契約・テストも変更が必要です。
 
-teacher の説明文の丸暗記を要求しないため、評価②に限り required call / allowed mutation に `match:"subset"` を明示できます。名前は厳密一致、arguments/result の指定したオブジェクト項目だけ再帰的に比較します。配列は順序と長さを維持し、未指定の自由文は人間レビューへ残します。subset での許可送信には少なくとも arguments の非空 `order_id` / `calculation_id` と、result 内の同一ID、`status:"処理シミュレーション完了"`, `external_side_effect:false` が必須です。単に空オブジェクトで全操作を許可することはできません。元のモデル出力引数は省略なしの完全なツール schema で検証します。
+teacher の説明文の丸暗記を要求しないため、評価②に限り required call / allowed mutation に `match:"subset"` を明示できます。名前は厳密一致、arguments/result の指定したオブジェクト項目だけ再帰的に比較します。配列は順序と長さを維持し、未指定の自由文は採点用モデルによる内容の評価へ残します。subset での許可送信には少なくとも arguments の非空 `order_id` / `calculation_id` と、result 内の同一ID、`status:"処理シミュレーション完了"`, `external_side_effect:false` が必須です。単に空オブジェクトで全操作を許可することはできません。元のモデル出力引数は省略なしの完全なツール schema で検証します。
 
-`final_state_match:"subset"` も明示的に選べます。terminal と送信件数・順番は維持し、各送信結果の業務フィールドを独立して期待値へ書きます。自由な `resolution_summary` やそれから作られる受付IDを期待値から外せます。**未指定フィールドは自動検査していません**。ポリシー・計算・必要な実行内容を required calls の結果で別途確認し、説明文は人間が確認してください。評価①には subset 一致はありません。
+`final_state_match:"subset"` も明示的に選べます。terminal と送信件数・順番は維持し、各送信結果の業務フィールドを独立して期待値へ書きます。自由な `resolution_summary` やそれから作られる受付IDを期待値から外せます。**未指定フィールドはルール検査していません**。ポリシー・計算・必要な実行内容を required calls の結果で別途確認し、説明文は`grade`で内容を評価します。評価①には subset 一致はありません。
 
 `final_state` は内部ストア全体の snapshot ではなく、成功したツール終了イベントから導いた
 `{"terminal":"answer_only"|"simulation_submitted", "submissions":[送信結果...]}` です。保存済みの自己申告とイベント由来の状態が異なる場合は証拠不整合になります。実システムの完了・永続化を保証するフィールドではありません。
@@ -105,21 +123,87 @@ call の重複、start/finish の欠落、モデル提案と実行の不一致�
 
 ## 判定と人間レビュー
 
-優先順に `technical_failure` → `quality_failure` → `review_pending` → `confirmed_success` と判定します。最後の状態には自動チェック合格に加え、明示的な人間の確認が必要です。
+### 標準の自動採点
 
-record に次の `review` を追加して再採点します:
+標準の流れは`run`で応答を保存し、`grade`で内容を自動採点し、`compare`で読むための比較表を作る順です。CSVへの判定入力は不要です。`grade`は未採点・人による確認前のrunを入力にし、新しい保存先を作ります。すでに`review`または`model_review`があるrunは受け付けません。
 
-```json
-{
-  "decision": "confirmed_success",
-  "reviewer": "reviewer-alias",
-  "reviewed_at": "2026-09-19T00:00:00Z",
-  "notes": "根拠・金額・説明・確認質問・実行範囲を人間が確認した記録",
-  "evidence_sha256": "64桁の証跡hash"
-}
+採点用モデルの設定は、`configs\examples\grading.json`から作る別ファイルです。受け付ける項目は`base_url`、`deployment`、`max_completion_tokens`、`timeout_seconds`の4項目だけです。接続先はHTTPSのOpenAI v1エンドポイント、`deployment`は構造化出力に対応したChat Completionsモデルの配置名です。例として同じFoundryリソースの`gpt-4.1`を`grader`という名前で配置し、出力上限を`1024`、通信待機上限を`60`秒にします。モデル・版・地域の対応は実行環境で確認します。準備は[実践手順6.1](../how-to/06-training-and-evaluation.md#61-採点用モデルと設定を準備する)に記載しています。
+
+次の2コマンドは、学習前後の保存済み応答を同じ設定で採点し、別々の出力先に保存します。評価対象の生徒モデルは呼び直しません。
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate.py grade --run-dir runs\base-before --config runs\grading-config.json --output-dir runs\base-graded
+.\.venv\Scripts\python.exe scripts\evaluate.py grade --run-dir runs\fine-tuned-after --config runs\grading-config.json --output-dir runs\fine-tuned-graded
 ```
 
-hash は `foundry_distillation_lab.evaluation.evidence_sha256(record)` で計算します。`review` だけを除いた canonical JSON の SHA-256 です。証跡が変わると確認は無効になります。`decision:"quality_failure"` も記録できます。人間の確認は技術的失敗・自動検査失敗を上書きできません。レビュー欄は署名や認証基盤ではなく、誰が判断したかのローカル記録です。プログラムで成功を捏造する代替手段として使わないでください。
+次のコマンドは、採点済みの2つのrunをオフラインで比較します。
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate.py compare --before runs\base-graded --after runs\fine-tuned-graded --output-dir runs\comparison
+```
+
+採点用モデルには、問題の履歴・業務ルール・ツール仕様・期待値・参照例と、評価対象の応答を渡します。評価②では観測したツールイベントと最終状態も渡します。評価対象モデルの識別情報、配置名、学習前後のラベル、既存の判定、使用量・時間は採点入力に含めません。問題や応答の中にある採点器への指示には従わず、同じ固定の採点基準`retail-blinded-business-quality-v1`を使います。採点用モデルはツールを実行しません。
+
+構造化出力は、`decision`と空でない`reason`だけを持つJSONです。採点基準では、`reason`に根拠や不確実性を簡潔な日本語で示すよう指示します。`decision`は`success`、`failure`、`needs_review`のいずれかです。通信エラー、不正・不完全なJSON、拒否、途中で切れた応答などは`unknown`として保存し、自動再試行しません。未試行も含め予定した分母を維持します。
+
+ルール検査で技術的失敗または品質不合格になった行は、採点用モデルを呼ばずに結果を保持します。内容の自動判定でルール検査の失敗を上書きしません。
+
+| 行の項目 | 意味 |
+|---|---|
+| `status` | 従来の状態。`technical_failure`、`quality_failure`、`review_pending`、`confirmed_success`。自動判定だけで`confirmed_success`にしない |
+| `automatic_decision` | 自動比較用の`success`、`failure`、`needs_review`、`unknown`。技術的失敗は`unknown`、ルール上の品質不合格は`failure` |
+| `assessment_source` | `deterministic`（ルール検査）、`model`（採点用モデル）、`invalid_model_review`（無効な自動採点記録）、`human`（人による確認のみ）、`unreviewed`（未採点・未確認） |
+| `model_review` | 人の`review`とは独立した採点記録。`source:"model"`、`state`、`decision`、`reason`、元の応答、採点条件と証跡との対応を保持 |
+| `confirmed_business_success` | 人が確認した評価②の業務成功だけがtrue。自動採点の合格ではfalse |
+
+`model_review.state`は`received`（採点応答を受理）、`unknown`（採点エラー）、`skipped`（ルール検査の失敗で採点呼び出しを省略）です。採点条件`protocol`には採点基準の版、基準・応答形式の識別値、設定を保持し、証跡・ケース・ツールと対応を検証します。`compare`と`combine`は異なる採点条件や、採点済みと未採点のrunの混在を拒否します。自動採点は推定であり、人による確認や業務成功の確定を代替しません。
+
+同じ設定でも、採点応答に含まれる空でないモデル識別子がrun内またはrun間で異なる場合、`compare`と`combine`は`comparison_grader_response_model_mismatch`で停止します。`grading.json`、`execution.json`の採点概要、`scores.json`の`grading`には、観測した識別子の一覧`response_models`と、識別子を取得できなかった呼び出し数`response_model_unknown_calls`を保持します。`comparison.json`では両側をまとめた`grader_response_identity`に記録します。取得できなかった識別子は不明のままとし、配置名から補ったり、クラウドへ照会して確認したものとして扱ったりしません。
+
+| 採点先に保存するファイル | 内容 |
+|---|---|
+| `source-evidence.json` | 採点前の観測記録 |
+| `grading-config.json`、`grading-rubric.json` | 採点設定、固定の採点基準と構造化出力の仕様 |
+| `grading-start.json`、`grading.json` | 採点開始・完了の記録。`grading.json`の`assessments`に各行の判定、`judge_calls`・`judge_failures`に呼び出し・失敗件数 |
+| `grading.json`の`usage_total`・`duration_seconds` | 採点用モデルの使用量と採点処理全体の時間。各呼び出しは`assessments`内の`usage`・`duration_seconds` |
+| `evidence.json`、`scores.json`、`execution.json` | 自動採点を追加した証跡、集計、元の評価と採点の実行記録 |
+
+個別・統合後の`scores.json`には、採点費用の根拠としてトップレベルの`grading`も保存します。形式は`retail-grading-overhead-v1`で、採点条件、完了状態、呼び出し件数、採点元ごとの`sources`を保持します。`usage_total`、`usage_known_subtotal`、`usage_reported_n`、`usage_unknown_n`は入力・出力・キャッシュ使用量の完全な合計、既知の小計、観測数、欠測数を分けます。`duration_seconds`は各採点元の処理時間の合計で、`duration_scope`は`sum_of_source_grading_wall_clock_seconds`です。実費の`actual_cost`は`null`であり、トークン数だけから価格や請求額を推測しません。
+
+採点の使用量・時間は評価対象の推論使用量・時間へ加算しません。費用に換算するときは、採点用モデルの配置に適用される単価を使い、[第8章](../chapters/08-cost.md)の`initial.evaluation`に計上します。
+
+### 比較表の判定と列
+
+`comparison.json`の`assessment_method:"model"`は自動比較、`legacy_human_review`は従来の確認結果の比較です。自動比較では両側の`automatic_decision`が`success`または`failure`のときだけ、`improvement`・`regression`・`no_change`を判定します。`needs_review`や`unknown`があれば`incomparable`です。全体の`decision_counts`に予定した全ケースを残します。
+
+`comparison.csv`はUTF-8 BOM付きの**閲覧用**の表です。`case_id`、`category`、`messages`、`expected`、`reference`、変化の`decision`に加え、各側の列に`before_`・`after_`を付けます。`response`は応答、`automatic_decision`は自動判定、`assessment_source`は判定の出所、`judge_reason`は採点用モデルの理由、`reasons`は技術的・ルール上の失敗理由、`latency_seconds`・`usage`は評価対象の時間・使用量です。従来の`status`・`review`と自動判定は別に保持します。`comparison.json`には詳細、`comparison.md`には判定と理由の概要を保存します。
+
+### 必要な場合の人による確認
+
+以下は標準の自動採点とは独立した手順です。人による確認を記録する場合、元の未採点runの`reviews.csv`を使います。`status`は優先順に`technical_failure` → `quality_failure` → `review_pending` → `confirmed_success`と判定します。最後の状態にはルール検査合格に加え、明示的な人間の確認が必要です。
+
+次のコマンドで、人による確認専用の`reviews.csv`を各runに出力します。通常の`run`や`grade`ではこのCSVを自動出力しません。
+
+```powershell
+python scripts\evaluate.py review-sheet --run-dir runs\base-before
+python scripts\evaluate.py review-sheet --run-dir runs\fine-tuned-after
+```
+
+出力された`reviews.csv`を開き、応答・参照例・判定理由を読みます。`decision`へ`success`または`failure`、`reviewer`へ確認者、`notes`へ判断理由を記入します。未確認のdecisionは`needs_review`または空欄にします。編集できるのはこの3列だけです。
+
+確認・比較用の出力には`category`と`reference`も含み、日本語の参照回答を読めます。CSVはExcelで開きやすいUTF-8 BOM付きで出力します。
+
+空欄は既存の確認結果を保持します。`needs_review`は既存の人による確認を解除しますが、自動検査の失敗は解除しません。`success`・`failure`には確認者と理由の両方が必要です。記録が欠けている行にはdecisionを付けられないため、空欄にします。
+
+```powershell
+python scripts\evaluate.py review --run-dir runs\base-before --output-dir runs\base-reviewed
+python scripts\evaluate.py review --run-dir runs\fine-tuned-after --output-dir runs\fine-tuned-reviewed
+python scripts\evaluate.py compare --before runs\base-reviewed --after runs\fine-tuned-reviewed --output-dir runs\human-comparison
+```
+
+`review`は元の証跡と確認内容の対応を内部で検査し、新しい保存先へ証跡と採点を出力します。識別値を手計算する必要はありません。人間の確認は技術的失敗・自動検査失敗を上書きできません。これは実行の許可ではなく、内容の評価です。確認前のrunも比較できますが、確認待ちはそのまま残ります。`compare`の問題別CSVとJSONで改善・悪化・未試行などを確認します。
+
+`review`は確認日時を自動記録し、取り込んだCSVを`review-input.csv`へ保存します。この人による確認結果の比較では、`compare`が`improvement`・`regression`・`no_change`を判定するのは、両側が`quality_failure`または`confirmed_success`のときだけです。確認待ち・技術的失敗を含む問題は`incomparable`です。
 
 `confirmed_business_success` が true になるのは評価②で上記を満たした場合だけです。日本語説明、架空の確認ID、現実に返金したかのような主張、不要な確認質問、拒否・確認の妥当性などは人間が確認します。
 
@@ -160,7 +244,7 @@ python scripts\evaluate.py --mode e2e --input data\samples\evaluation-hosted-cas
 python scripts\evaluate.py --mode e2e --input runs\hosted-import-demo.json --output runs\hosted-import-demo-scores.json
 ```
 
-どちらの入力も `synthetic_illustration_not_measurement` です。実際の Hosted Agent を実行した証拠ではありません。import の出力は採点用 bundle、次のコマンドの出力が report です。JSON の単一 object / object 配列、または JSONL を受け付けます。上書き・重複するケース×モデルを拒否し、`--send` 等の live フラグとは併用できません。
+どちらの入力も `synthetic_illustration_not_measurement` です。実際の Hosted Agent を実行した証拠ではありません。import の出力は採点用 bundle、次のコマンドの出力が report です。JSON の単一 object / object 配列、または JSONL を受け付けます。上書き・重複するケース×モデルを拒否します。importはオフライン操作で、`run`とは別の入口です。
 
 ### 期待する identity と観測記録
 
@@ -220,31 +304,51 @@ python scripts\report.py --prepare-evaluation --input runs\e2e-demo.json --confi
 python scripts\report.py --input runs\evaluation-cost-input.json --output runs\evaluation-cost-report
 ```
 
-最初の入力は本ページ冒頭の評価②デモ report です。`teacher` / `base` / `fine_tuned` の3者をまとめた report が必要です。モデル別の実 run では先に同じケース・条件の records をまとめて評価②を再採点し、その report を渡します。価格・通貨・本番業務量・稼働条件等は config に明示し、評価データから勝手に推定しません。
+最初の入力は本ページ冒頭の評価②デモ report です。`teacher` / `base` / `fine_tuned`の3者をまとめたreportが必要です。モデル別の実runは、[第7章の自動採点](../chapters/07-end-to-end.md#6-費用比較へ渡す3者の結果をまとめる)を終えてから、次のオフライン操作でまとめます。recordsの手作業での転記は不要です。
+
+```powershell
+python scripts\evaluate.py combine --run-dirs runs\e2e-teacher-graded `
+  runs\e2e-base-graded runs\e2e-fine-tuned-graded --output-dir runs\e2e-combined
+```
+
+次のコマンドで、3者分の採点結果から費用入力を作ります。
+
+```powershell
+python scripts\report.py --prepare-evaluation --input runs\e2e-combined\scores.json `
+  --config configs\examples\cost-evaluation.json --output runs\measured-cost-input.json
+```
+
+教師の実行先は共通評価設定の`targets.teacher`へ追加し、`run --model teacher`で選びます。内容の自動採点は各runに同じ設定の`grade`を使います。統合は判定保留や欠測を成功・0へ変えません。自動判定のみでは採用判断と確認済み成功単価を保留します。価格・通貨・本番業務量・稼働条件は費用設定へ明示し、評価データから推測しません。
+
+`combine`は異なるモデルラベルの2個以上のrunを受け取り、共通の問題・ツール・モード・設定を照合します。`input.json`、`evidence.json`、`scores.json`、`execution.json`を新規保存します。採点済みrunでは、統合後の`execution.json`の`sources[i].grading`に各採点元の条件、完了状態、呼び出し・失敗・省略・欠測件数、`usage_total`、`duration_seconds`、`usage_scope`を保持します。個別の採点済みrunでも同じ概要を`execution.json`の`grading`に保存し、詳細な`grading.json`は元の採点先に残します。統合自体は評価①でも使えますが、費用adapterへ渡せるのは3者分の評価②だけです。
 
 準備 adapter は source report/config の SHA-256、ケースの同一性・重複回数、usage の合計/既知小計/観測数、確認済み結果、row の runtime provenance を保持します。runtime の根拠は `row.provenance.runtime.kind` であり、価格 config から実行環境を補いません。同一 cohort を確認できない、使用量や runtime が不明、レビュー未完了、模擬例しかない等の場合は **hold（判断保留）** にします。未知を無料や成功扱いにしません。
 
 このデモは合成証跡を使うため、bridge や SVG が生成できても実運用での採用根拠にはなりません。この費用 adapter は `mode:e2e` 専用で、評価① (`next-action`) の report は入力段階で拒否します。費用 adapter の詳細と本番条件の記入は第8章および reporting の reference を参照してください。
 
-## 任意の live 境界: Hosted Agent ではない
+## モデルを直接呼ぶ評価
 
-`--send --approval <path> --run-dir <new-path>` を加えた場合だけ live 分岐を使います。
+`configs\examples\evaluation.json`を一度複製し、`base_url`と`targets`を設定します。共通の問題ファイルはそのまま使います。手順は[第6章の実践手順](../how-to/06-training-and-evaluation.md)を参照してください。
 
-1. `configs\examples\evaluation-live.json` は**未完成の計画テンプレート**。cases/tools/費用上限を埋めない限り検証失敗します。
-2. 同一入力 bundle に targets、endpoint、token 上限、timeout、loop 上限、`reserve_per_request` を固定します。後者は入力・出力・最大履歴を含む保守的な1要求あたり費用上限で、approval の通貨と一致させます。自動で現行価格を調べません。
-3. 承認の operation は `eval-next-action` または `eval-e2e`。入力ファイル全体の hash、対象、期限、リクエスト数、費用上限を `Approval.load` で確認します。live 入力はケース・messages・tools・endpoint・deployment を埋め込んだ自己完結 bundle で、外部データセットを実行時に参照しません。準備元の hash は出所情報であり、元ファイルを読み直して実行する指定ではありません。最初に読み込んだ bytes の hash と承認値も照合し、読み込み後のファイル差し替えで異なる payload を承認することを防ぎます。
-4. 現在の `Approval` は**単一 target**を承認するため、live では models/targets を1モデルに絞った入力を作り、モデルごとに別途承認してください。3モデルの比較はオフライン集約で行います。
-5. 評価②は実際の RetailSession と完全一致する tools と、各ケースの `system_prompt` を入力に含めます。サンプルの縮小 schema をそのまま live 実行することはできません。
-6. 最悪時の要求数・予約総額が承認内に入るか事前確認します。毎要求の直前にも `assert_target` / `reserve` を呼びます。次に `Journal.start` を排他的に永続化してから送信します。start が残った attempt は finish がなくても再送禁止です。
-7. `Journal.finish` に受信結果または unknown を記録。CLI は不明/エラー/上限/blocked のケースで run 全体を停止し、残りは未試行にします。新しい run ディレクトリを使って不明な操作を自動再開する機能はありません。
-8. OpenAI SDK / Azure Identity は送信時だけ import。DefaultAzureCredential の token provider、`max_retries=0`、明示 timeout、Chat Completions の `/openai/v1/` endpoint を使います。API キーを取得・保存しません。
+```powershell
+python scripts\evaluate.py run --mode next-action --input runs\next-action-input.json --config runs\evaluation-config.json --model base --run-dir runs\base-before
+python scripts\evaluate.py run --mode next-action --input runs\next-action-input.json --config runs\evaluation-config.json --model fine_tuned --run-dir runs\fine-tuned-after
+```
 
-既存 output/run-dir は拒否します。失敗で空 output が残ることもありますが、削除して自動再送せず、run 内の `input.json`, `record-*.json`, `evidence.json`, `attempts` を確認してください。学習データや prompt に機微情報があれば、これらの証跡も公開しないでください。
+- `--mode`は`next-action`または`e2e`。対象は`--model`で選びます。モデル一覧・records・出所ラベルの手編集は不要です。
+- 共通設定は`base_url`、`targets`、`max_completion_tokens: 1024`、`timeout_seconds: 60`、`max_model_calls: 12`、`max_tool_calls: 24`です。出力上限は要求ごと、呼び出し上限はケースごとです。
+- 評価①は各ケース1要求で、ツールを実行しません。評価②は実際のRetailSessionに一致するtoolsとsystem promptを使い、模擬業務ツールを実行します。
+- 最初の通常ケースで接続も確認します。別の接続試験へ切り出さず、初回の時間・使用量を本評価に含めます。
+- runには`input.json`、送信前の`execution-start.json`、`evidence.json`、`scores.json`、結果保存後の`execution.json`を自動保存します。入力はそのまま固定し、選択モデルの観測を別の証跡へ保存します。内部識別値と送信記録もプログラムが管理します。
+- エラー・上限・結果不明では停止し、残りを未試行として分母に残します。SDKの自動再試行を無効にし、不明な要求を別runで送り直しません。
+- 認証は`DefaultAzureCredential`、推論はChat Completionsの`/openai/v1/`です。入力に機微情報がある場合は出力も公開しません。
 
-**この live 経路はローカルで tool を実行し、モデルに直接 API を呼ぶ比較です。Hosted Agent の transport・基盤費・起動時間・監視・分散状態を観測したものではありません。** Hosted Agent のテンプレートは別の実行経路であり、同じ性能条件と表現しません。期限は新規要求の admission を止めるだけで、送信中の要求やクラウド課金の停止を保証しません。
+費用は対象モデルの単価、入力量、出力上限から見積もり、実行後のusage・請求とは分けます。使用量が欠けた場合は0にしません。学習費や配置の保持費は別に確認します。
+
+**この経路はHosted Agentの基盤費・起動時間・監視・分散状態を測るものではありません。** ローカル停止は送信済み要求やクラウド課金の停止を保証しません。
 
 ## 検証範囲と限界
 
-標準ライブラリ unittest により、厳密な引数/schema 検査、欠けた証跡、使用量 unknown、順序・最終状態、レビューhash、分母、注入モデルでの会話分離、呼び出し上限、再送禁止、CLI の上書き拒否を検証します。実際の RetailSession / Approval / Journal と Hosted Capture クラスとのローカル結合もテストし、SDK / HTTP 境界は mock で確認します。サンプルだけでは返品・交換・境界条件のカバレッジを満たしません。ケース数を増やす前に独立した期待値とカテゴリ・境界の実験計画を追加してください。
+標準ライブラリ unittest により、厳密な引数/schema 検査、欠けた証跡、使用量 unknown、順序・最終状態、確認と証跡の対応、分母、会話分離、呼び出し上限、再送禁止、CLIの上書き拒否を検証します。実際のRetailSession、送信記録、Hosted Captureとのローカル結合と、SDK / HTTP境界のmockを使います。サンプルだけでは返品・交換・境界条件のカバレッジを満たしません。ケース数を増やす前に独立した期待値とカテゴリ・境界の実験計画を追加してください。
 
 クラウド認証・課金・モデル利用可否・SDKの実サービス互換・Hosted Agent での通し実行・品質同等性・採用成功はこの実装作業では**未検証**です。価格・費用の計算と採用判断は別章で行います。旧実験の cloud ID、固定のケース数、過去 run、5モデル前提には依存しません。

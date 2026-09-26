@@ -1,0 +1,11 @@
+{
+  "base_url": "https://YOUR-RESOURCE.openai.azure.com/openai/v1/",
+  "targets": {
+    "base": "student-base",
+    "fine_tuned": "student-fine-tuned"
+  },
+  "max_completion_tokens": 1024,
+  "timeout_seconds": 60,
+  "max_model_calls": 12,
+  "max_tool_calls": 24
+}

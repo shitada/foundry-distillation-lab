@@ -52,13 +52,18 @@ def assistant_message(response):
 
 
 class Capture:
-    def __init__(self, plan, approved_input, approval, run_dir, runtime_identity=None):
-        self.plan, self.input, self.approval = plan, approved_input, approval
+    def __init__(self, plan, selected_input, run_dir, runtime_identity=None):
+        for key in ("max_model_calls", "max_tool_calls"):
+            limit = plan["config"].get(key)
+            if type(limit) is not int or limit < 1:
+                raise ValueError(f"{key} must be a positive integer")
+        self.plan, self.input = plan, selected_input
+        self.plan_digest = hashlib.sha256(canonical(plan).encode("utf-8")).hexdigest()
         self.run_dir = Path(run_dir)
         self.journal = Journal(self.run_dir)
         self.counter = 0
         self.pending = {}
-        self.prefix = hashlib.sha256(approved_input["conversation_id"].encode()).hexdigest()[:24]
+        self.prefix = hashlib.sha256(selected_input["conversation_id"].encode()).hexdigest()[:24]
         self.started = time.monotonic()
         self.events = []
         self.captures = []
@@ -81,7 +86,7 @@ class Capture:
     @property
     def source(self):
         return {"target": self.plan["target"],
-                "collection_plan_sha256": self.approval.data["input_sha256"]}
+                "collection_plan_sha256": self.plan_digest}
 
     def event(self, kind, **values):
         record = {"event": kind, "conversation_id": self.input["conversation_id"],
@@ -96,6 +101,11 @@ class Capture:
     def call_tool(self, name, arguments, execute):
         if self.tool_failure:
             raise RuntimeError("A prior tool failed with unknown side effects; no further tool execution")
+        if self.tool_counter >= self.plan["config"]["max_tool_calls"]:
+            self.tool_failure = True
+            self.event("tool_blocked", call_id=None, name=name, arguments=arguments,
+                       status="unknown", reason="tool_call_limit")
+            raise RuntimeError("Tool call limit reached; no further tool execution")
         matches = [call for call in self.provider_calls if call["name"] == name
                    and canonical(parse_json(call["arguments"])) == canonical(arguments)]
         if len(matches) != 1:
@@ -139,7 +149,7 @@ class Capture:
         config = self.plan["config"]
         expected = config["project_endpoint"].rstrip("/") + "/openai/v1/responses"
         if request.method != "POST" or str(request.url).split("?")[0] != expected:
-            raise ValueError("Unapproved model request route")
+            raise ValueError("Model request route differs from the collection plan")
         body = json.loads(await request.aread())
         if body.get("model") != config["model"] or body.get("store") is not False:
             raise ValueError("Model target/store setting changed")
@@ -147,11 +157,12 @@ class Capture:
             raise ValueError("Remote continuation is not supported")
         if body.get("max_output_tokens") != config["max_output_tokens"]:
             raise ValueError("Output token cap changed")
+        if self.counter >= config["max_model_calls"]:
+            raise RuntimeError("Model call limit reached; no further model requests")
         self.counter += 1
         self.final_answer = None
         attempt_id = f"collect-{self.prefix}-{self.counter}"
         self.journal.start(attempt_id, body)
-        self.approval.reserve(config["estimated_cost_per_model_request"])
         self.pending[id(request)] = (attempt_id, body, self.counter)
         self.event("model_start", model_call_index=self.counter,
                    call_id=f"model-{self.counter}", request=body)

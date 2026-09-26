@@ -2,36 +2,28 @@
 
 from copy import deepcopy
 import hashlib
-import math
 import time
 
 from .schema import ContractError, call_errors, canonical, parse_call, tool_schemas
 from .scoring import aggregate_usage, derive_final_state, normalized_usage
 
 
-class GuardedModel:
-    """Write-ahead, no-retry boundary for an explicitly approved paid call.
+class RecordedModel:
+    """Write-ahead, no-retry boundary for a direct model call.
 
-    The caller supplies an Approval and durable Journal. Existing start records
+    The caller supplies a durable Journal. Existing start records
     must be rejected by Journal.start, including starts with no finish record.
     """
 
-    def __init__(self, invoke, *, approval, journal, target, reserve_per_request, send=False):
-        if send is not True:
-            raise PermissionError("explicit_send_required")
-        if (type(reserve_per_request) not in (int, float)
-                or not math.isfinite(reserve_per_request) or reserve_per_request <= 0):
-            raise ValueError("positive_finite_request_reservation_required")
+    def __init__(self, invoke, *, journal, target):
+        if not isinstance(target, str) or not target.strip():
+            raise ValueError("explicit_model_target_required")
         self.invoke = invoke
-        self.approval = approval
         self.journal = journal
         self.target = target
-        self.reserve_per_request = reserve_per_request
 
     def __call__(self, payload):
         attempt_id = payload["attempt_id"]
-        self.approval.assert_target(self.target)
-        self.approval.reserve(self.reserve_per_request)
         request = deepcopy(payload)
         request["target"] = self.target
         self.journal.start(attempt_id, request)
@@ -52,6 +44,8 @@ def _attempt_id(model, case_id, index):
 
 
 def _message(response):
+    if isinstance(response, dict) and response.get("response_error"):
+        raise ValueError(response["response_error"])
     if not isinstance(response, dict) or not isinstance(response.get("message"), dict):
         raise ValueError("model_response_requires_message")
     canonical(response)
@@ -62,6 +56,11 @@ def _message(response):
     if message.get("content") is not None and not isinstance(message["content"], str):
         raise ValueError("content_not_string")
     return message, calls
+
+
+def _response_identity(response):
+    return {key: deepcopy(response[key]) for key in ("response_model", "response_id")
+            if isinstance(response, dict) and key in response}
 
 
 def run_next_action(case, model, invoke, tools):
@@ -76,6 +75,7 @@ def run_next_action(case, model, invoke, tools):
         response = invoke({"attempt_id": _attempt_id(model, case["case_id"], 1),
                            "model_label": model, "messages": deepcopy(case["messages"]),
                            "tools": deepcopy(tools)})
+        record.update(_response_identity(response))
         message, _ = _message(response)
         record.update(status="completed", message=deepcopy(message),
                       usage=normalized_usage(response.get("usage")))
@@ -100,11 +100,11 @@ def run_case(case, model, invoke, session_factory, *, max_model_calls=12, max_to
     session = session_factory()
     schemas = tool_schemas(session.tools)
     if tools is not None and canonical(session.tools) != canonical(tools):
-        raise ContractError("session_tools_differ_from_approved_input")
+        raise ContractError("session_tools_differ_from_input")
     if not isinstance(session.system_prompt, str) or not session.system_prompt:
         raise ContractError("session_system_prompt_required")
     if "system_prompt" in case and case["system_prompt"] != session.system_prompt:
-        raise ContractError("session_prompt_differs_from_approved_input")
+        raise ContractError("session_prompt_differs_from_input")
     messages = [{"role": "system", "content": session.system_prompt},
                 {"role": "user", "content": case["user_input"]}]
     events, usages, successful, seen_ids = [], [], [], set()
@@ -115,20 +115,23 @@ def run_case(case, model, invoke, session_factory, *, max_model_calls=12, max_to
         for index in range(1, max_model_calls + 1):
             model_id = f"model-{index}"
             events.append({"event": "model_start", "call_id": model_id})
+            response = None
             try:
                 response = invoke({"attempt_id": _attempt_id(model, case["case_id"], index),
                                    "model_label": model, "messages": deepcopy(messages),
                                    "tools": deepcopy(session.tools)})
+                record.update(_response_identity(response))
                 message, calls = _message(response)
             except Exception as exc:
                 usages.append(None)
                 events.append({"event": "model_finish", "call_id": model_id, "status": "unknown",
-                               "error_type": type(exc).__name__})
+                               "error_type": type(exc).__name__, **_response_identity(response)})
                 record["error_type"] = type(exc).__name__
                 break
             usages.append(response.get("usage"))
             events.append({"event": "model_finish", "call_id": model_id, "status": "completed",
-                           "message": deepcopy(message), "usage": normalized_usage(response.get("usage"))})
+                           "message": deepcopy(message), "usage": normalized_usage(response.get("usage")),
+                           **_response_identity(response)})
             if not calls:
                 record["answer"] = message.get("content") or ""
                 record["status"] = "completed" if record["answer"].strip() else "error"
@@ -230,18 +233,25 @@ class OpenAITransport:
                                              "https://cognitiveservices.azure.com/.default")
             self._client = OpenAI(base_url=self.base_url, api_key=token, max_retries=0,
                                   timeout=self.timeout_seconds)
+        options = ({"response_format": payload["response_format"]}
+                   if "response_format" in payload else
+                   {"tools": payload["tools"], "parallel_tool_calls": False})
         response = self._client.chat.completions.create(
-            model=payload["target"], messages=payload["messages"], tools=payload["tools"],
-            parallel_tool_calls=False, max_completion_tokens=self.max_completion_tokens,
-            store=False,
-        )
+            model=payload["target"], messages=payload["messages"],
+            max_completion_tokens=self.max_completion_tokens, store=False, **options)
         raw = response.model_dump()
-        choices = raw.get("choices", [])
-        if len(choices) != 1 or choices[0].get("finish_reason") not in {"stop", "tool_calls"}:
-            raise ValueError("incomplete_or_ambiguous_model_response")
+        identity = {f"response_{key}": raw[key] for key in ("model", "id") if key in raw}
         usage = raw.get("usage") or {}
         details = usage.get("prompt_tokens_details") or {}
-        return {"message": choices[0]["message"],
-                "usage": {"input_tokens": usage.get("prompt_tokens"),
+        measured_usage = {"input_tokens": usage.get("prompt_tokens"),
                           "output_tokens": usage.get("completion_tokens"),
-                          "cached_input_tokens": details.get("cached_tokens")}}
+                          "cached_input_tokens": details.get("cached_tokens")}
+        choices = raw.get("choices", [])
+        if (not isinstance(choices, list) or len(choices) != 1
+                or not isinstance(choices[0], dict)
+                or choices[0].get("finish_reason") not in {"stop", "tool_calls"}):
+            return {**identity, "usage": measured_usage,
+                    "response_error": "incomplete_or_ambiguous_model_response",
+                    "choices": choices}
+        return {"message": choices[0].get("message"),
+                **identity, "finish_reason": choices[0]["finish_reason"], "usage": measured_usage}

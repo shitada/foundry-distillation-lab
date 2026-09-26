@@ -1,14 +1,14 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
 import importlib.util
 import hashlib
+import io
 import json
 from pathlib import Path
 import shutil
 import sys
 import time
-from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,37 +35,48 @@ class Workspace(unittest.TestCase):
                     raise
                 time.sleep(0.1 * 2 ** retry)
 
-    def approval(self, source, operation, target, requests=5, cost=100):
-        path = self.work / ("approval-" + uuid.uuid4().hex + ".json")
-        write_json(path, {"approved": True, "operation": operation,
-                         "input_sha256": sha256(source), "target": target,
-                         "max_requests": requests, "max_cost": cost, "currency": "JPY",
-                         "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()})
-        return path
-
-
 class FakeTransport:
-    def __init__(self, fail=False):
+    def __init__(self, fail=False, file_states=None, job_state="succeeded", submit_fail=False):
         self.calls = []
         self.fail = fail
+        self.submit_fail = submit_fail
+        self.file_states = file_states or {}
+        self.job_state = job_state
 
     def upload(self, name, raw):
         self.calls.append(("upload", name, raw))
         if self.fail:
             raise TimeoutError("not logged")
-        return {"id": "file-" + name.split(".")[0], "status": "processed"}
+        return {"id": "file-" + name.split(".")[0], "status": "uploaded"}
 
     def submit(self, payload):
         self.calls.append(("submit", payload))
+        if self.submit_fail:
+            raise TimeoutError("uncertain submission")
         return {"id": "ftjob-test", "status": "pending"}
 
     def status(self, kind, identifier):
         self.calls.append(("GET", kind, identifier))
-        return {"id": identifier, "status": "succeeded", "trained_tokens": 123}
+        if kind == "file":
+            states = self.file_states.get(identifier, ["processed"])
+            state = states.pop(0) if len(states) > 1 else states[0]
+            return {"id": identifier, "status": state}
+        return {"id": identifier, "status": self.job_state, "trained_tokens": 123}
+
+
+class Clock:
+    def __init__(self):
+        self.now = 0
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
 
 
 class TrainingTests(Workspace):
-    def prepare(self):
+    def inputs(self):
         train = self.work / "train.jsonl"
         val = self.work / "validation.jsonl"
         row = lambda n: {"messages": [{"role": "user", "content": f"問い合わせ {n}"},
@@ -75,10 +86,17 @@ class TrainingTests(Workspace):
         config = self.work / "config.json"
         write_json(config, {"project_endpoint": "https://example.services.ai.azure.com/api/projects/lab",
                             "model": "test-model-version", "training_type": "Standard",
-                            "hyperparameters": {"n_epochs": 2}, "upload_estimated_cost": 0,
-                            "submit_estimated_cost": 10})
+                            "hyperparameters": {"n_epochs": 2}})
+        return train, val, config
+
+    def prepare(self):
+        train, val, config = self.inputs()
         jobs.prepare(train, val, config, self.work / "prepared")
         return self.work / "prepared" / "upload-plan.json"
+
+    def start(self, fake=None, **kwargs):
+        return jobs.start(*self.inputs(), self.work / "training",
+                          transport=fake or FakeTransport(), **kwargs)
 
     def test_prepare_hashes_bom_and_create_only(self):
         plan_path = self.prepare()
@@ -90,33 +108,19 @@ class TrainingTests(Workspace):
             jobs.prepare(self.work / "train.jsonl", self.work / "validation.jsonl",
                          self.work / "config.json", plan_path.parent)
 
-    def test_upload_requires_execute_and_exact_approval(self):
-        path = self.prepare()
-        fake = FakeTransport()
-        with self.assertRaises(ValueError):
-            jobs.upload(path, "train", run_dir=self.work, transport=fake)
-        approval = self.approval(path, "training-upload", "wrong")
-        with self.assertRaises(ValueError):
-            jobs.upload(path, "train", execute=True, approval_path=approval,
-                        run_dir=self.work, transport=fake)
-        self.assertEqual(fake.calls, [])
-
     def test_modified_dataset_rejected(self):
         path = self.prepare()
-        approval = self.approval(path, "training-upload", read_json(path)["target"])
         with (path.parent / "train.jsonl").open("ab") as handle:
             handle.write(b" ")
         fake = FakeTransport()
         with self.assertRaises(ValueError):
-            jobs.upload(path, "train", execute=True, approval_path=approval,
-                        run_dir=self.work, transport=fake)
+            jobs.upload(path, "train", run_dir=self.work, transport=fake)
         self.assertFalse(fake.calls)
 
     def test_unknown_upload_cannot_be_replayed(self):
         path = self.prepare()
-        approval = self.approval(path, "training-upload", read_json(path)["target"])
         fake = FakeTransport(fail=True)
-        options = dict(execute=True, approval_path=approval, run_dir=self.work, transport=fake)
+        options = dict(run_dir=self.work, transport=fake)
         with self.assertRaises(TimeoutError):
             jobs.upload(path, "train", **options)
         with self.assertRaises(FileExistsError):
@@ -126,68 +130,297 @@ class TrainingTests(Workspace):
         self.assertEqual(result["status"], "outcome_unknown")
         self.assertIsNone(result["result"]["actual_cost"])
 
-    def test_upload_submit_get_status_flow(self):
-        path = self.prepare()
-        target = read_json(path)["target"]
-        approval = self.approval(path, "training-upload", target, requests=2)
+    def test_start_submit_repeatable_status_and_no_replay(self):
         fake = FakeTransport()
-        for role in ("train", "validation"):
-            jobs.upload(path, role, execute=True, approval_path=approval,
-                        run_dir=self.work, transport=fake)
-        submit_path = self.work / "submit.json"
-        plan = jobs.prepare_submission(path, self.work / "train-upload-receipt.json",
-                                       self.work / "validation-upload-receipt.json", submit_path)
+        receipt = self.start(fake)
+        run = self.work / "training"
+        plan = read_json(run / "submit-plan.json")
         self.assertEqual(plan["payload"]["training_file"], "file-train")
         self.assertEqual(plan["payload"]["method"]["type"], "supervised")
-        submit_approval = self.approval(submit_path, "training-submit", target, requests=1)
-        jobs.submit(submit_path, execute=True, approval_path=submit_approval,
-                    run_dir=self.work, transport=fake)
-        receipt = self.work / "job-receipt.json"
-        status_approval = self.approval(receipt, "training-submit", target, requests=1)
-        result = jobs.status(receipt, execute=True, approval_path=status_approval,
-                             run_dir=self.work, observation_id="one", transport=fake)
-        self.assertEqual(result["trained_tokens"], 123)
+        self.assertEqual(receipt["response"]["id"], "ftjob-test")
+        for _ in range(2):
+            result = jobs.status(run, transport=fake)
+            self.assertEqual(result["outcome"], "succeeded")
+            self.assertEqual(result["states"]["job"]["trained_tokens"], 123)
         self.assertEqual(fake.calls[-1], ("GET", "job", "ftjob-test"))
+        with self.assertRaises(FileExistsError):
+            jobs.start(self.work / "train.jsonl", self.work / "validation.jsonl",
+                       self.work / "config.json", run, transport=fake)
+        with self.assertRaises(FileExistsError):
+            jobs.submit(run / "submit-plan.json", run_dir=run, transport=fake)
+        self.assertEqual(sum(call[0] == "submit" for call in fake.calls), 1)
+        self.assertEqual(sum(call[0] == "upload" for call in fake.calls), 2)
+        self.assertEqual(len(list((run / "observations").glob("*.json"))), 4)
 
-    def test_budget_prevents_transport(self):
+    def test_changed_config_plan_rejected_before_transport(self):
         path = self.prepare()
-        approval = self.approval(path, "training-submit", read_json(path)["target"], cost=1)
-        sent = []
-        with self.assertRaises(ValueError):
-            execute_once(execute=True, approval_path=approval, operation="training-submit",
-                input_path=path, target_id=read_json(path)["target"], run_dir=self.work,
-                payload={}, estimated_cost=2, send=lambda: sent.append(True))
-        self.assertFalse(sent)
-
-    def test_request_limit_is_shared_between_uploads(self):
-        path = self.prepare()
-        approval = self.approval(path, "training-upload", read_json(path)["target"], requests=1)
         fake = FakeTransport()
-        jobs.upload(path, "train", execute=True, approval_path=approval,
-                    run_dir=self.work, transport=fake)
-        with self.assertRaises(ValueError):
-            jobs.upload(path, "validation", execute=True, approval_path=approval,
-                        run_dir=self.work, transport=fake)
-        self.assertEqual(len(fake.calls), 1)
-
-    def test_expired_and_changed_plan_approvals_rejected(self):
-        path = self.prepare()
-        approval_path = self.approval(path, "training-upload", read_json(path)["target"])
-        approval = read_json(approval_path)
-        approval["expires_at"] = "2000-01-01T00:00:00Z"
-        approval_path.write_text(json.dumps(approval), encoding="utf-8")
-        fake = FakeTransport()
-        with self.assertRaises(ValueError):
-            jobs.upload(path, "train", execute=True, approval_path=approval_path,
-                        run_dir=self.work, transport=fake)
-        fresh = self.approval(path, "training-upload", read_json(path)["target"])
         plan = read_json(path)
         plan["config"]["hyperparameters"]["n_epochs"] = 10
         path.write_text(json.dumps(plan), encoding="utf-8")
         with self.assertRaises(ValueError):
-            jobs.upload(path, "train", execute=True, approval_path=fresh,
-                        run_dir=self.work, transport=fake)
+            jobs.upload(path, "train", run_dir=self.work, transport=fake)
         self.assertFalse(fake.calls)
+
+    def test_both_files_must_be_processed_before_submit(self):
+        clock = Clock()
+        fake = FakeTransport(file_states={"file-train": ["processed"],
+                                         "file-validation": ["uploaded", "pending", "processed"]})
+        self.start(fake, clock=clock, sleep=clock.sleep, timeout_seconds=20, poll_seconds=2)
+        self.assertEqual(clock.now, 4)
+        self.assertEqual([call[0] for call in fake.calls],
+                         ["upload", "upload", "GET", "GET", "GET", "GET", "submit"])
+
+    def test_file_processing_error_never_submits(self):
+        fake = FakeTransport(file_states={"file-validation": ["error"]})
+        with self.assertRaisesRegex(ValueError, "processing failed"):
+            self.start(fake)
+        self.assertFalse(any(call[0] == "submit" for call in fake.calls))
+        self.assertEqual(jobs.status(self.work / "training", transport=fake)["outcome"], "failed")
+
+    def test_file_processing_deadline_and_interrupted_status(self):
+        clock = Clock()
+        fake = FakeTransport(file_states={"file-validation": ["uploaded"]})
+        with self.assertRaises(TimeoutError):
+            self.start(fake, clock=clock, sleep=clock.sleep, timeout_seconds=3, poll_seconds=2)
+        self.assertEqual(clock.now, 3)
+        self.assertFalse(any(call[0] == "submit" for call in fake.calls))
+        result = jobs.status(self.work / "training", transport=fake)
+        self.assertEqual(result["outcome"], "no_job")
+        self.assertIn("do not blindly", result["message"])
+        self.assertEqual(set(result["states"]), {"train", "validation"})
+
+    def test_unknown_submission_never_resends(self):
+        fake = FakeTransport(submit_fail=True)
+        with self.assertRaises(TimeoutError):
+            self.start(fake)
+        run = self.work / "training"
+        with self.assertRaises(FileExistsError):
+            jobs.submit(run / "submit-plan.json", run_dir=run, transport=fake)
+        self.assertEqual(jobs.status(run, transport=fake)["outcome"], "no_job")
+        self.assertEqual(sum(call[0] == "submit" for call in fake.calls), 1)
+        evidence = read_json(next((run / "attempts").glob("training-submit-*.result.json")))
+        self.assertEqual(evidence["status"], "outcome_unknown")
+
+    def test_lost_job_receipt_reconciled_from_journal_without_mutation(self):
+        fake = FakeTransport()
+        def save(path, value):
+            if Path(path).name == "job-receipt.json":
+                raise OSError("simulated disk failure")
+            return write_json(path, value)
+        with patch.object(jobs, "write_json", side_effect=save):
+            with self.assertRaises(OSError):
+                self.start(fake)
+        run = self.work / "training"
+        self.assertFalse((run / "job-receipt.json").exists())
+        self.assertEqual(jobs.status(run, transport=fake)["outcome"], "succeeded")
+        (run / "job-receipt.json").write_text("{", encoding="utf-8")
+        result = jobs.status(run, transport=fake)
+        self.assertEqual(result["outcome"], "succeeded")
+        self.assertEqual(result["diagnostics"][0]["path"], str(run / "job-receipt.json"))
+        self.assertIn("JSONDecodeError", result["diagnostics"][0]["reason"])
+        self.assertEqual(sum(call[0] == "submit" for call in fake.calls), 1)
+        with self.assertRaises(FileExistsError):
+            jobs.submit(run / "submit-plan.json", run_dir=run, transport=fake)
+
+    def test_lost_journal_save_still_blocks_resend(self):
+        fake = FakeTransport()
+        def save(path, value):
+            if Path(path).name.startswith("training-submit-") and str(path).endswith(".result.json"):
+                Path(path).write_text("{", encoding="utf-8")
+                raise OSError("simulated journal disk failure")
+            return write_json(path, value)
+        with patch("foundry_distillation_lab.safety.write_json", side_effect=save):
+            with self.assertRaises(OSError):
+                self.start(fake)
+        run = self.work / "training"
+        result = jobs.status(run, transport=fake)
+        self.assertEqual(result["outcome"], "no_job")
+        self.assertIn("training-submit-", result["diagnostics"][0]["path"])
+        self.assertIn("JSONDecodeError", result["diagnostics"][0]["reason"])
+        with self.assertRaises(FileExistsError):
+            jobs.submit(run / "submit-plan.json", run_dir=run, transport=fake)
+        self.assertEqual(sum(call[0] == "submit" for call in fake.calls), 1)
+
+    def test_unreadable_journal_reports_path_before_receipt_fallback(self):
+        fake = FakeTransport()
+        self.start(fake)
+        run = self.work / "training"
+        journal_path = next((run / "attempts").glob("training-submit-*.result.json"))
+        def read(path):
+            if Path(path) == journal_path:
+                raise PermissionError("simulated unreadable evidence")
+            return read_json(path)
+        with patch.object(jobs, "read_json", side_effect=read):
+            result = jobs.status(run, transport=fake)
+        self.assertEqual(result["outcome"], "succeeded")
+        self.assertEqual(result["diagnostics"], [{
+            "path": str(journal_path), "reason": "PermissionError: simulated unreadable evidence"}])
+        self.assertEqual(sum(call[0] == "submit" for call in fake.calls), 1)
+
+    def test_malformed_journal_reports_diagnostics_with_receipt_fallback(self):
+        fake = FakeTransport()
+        self.start(fake)
+        run = self.work / "training"
+        journal_path = next((run / "attempts").glob("training-submit-*.result.json"))
+        malformed = [[], {}, {"status": "response_received", "result": []},
+                     {"status": [], "result": {}},
+                     {"status": "response_received", "result": {"response": {}}}]
+        for value in malformed:
+            with self.subTest(evidence=value):
+                journal_path.write_text(json.dumps(value), encoding="utf-8")
+                result = jobs.status(run, transport=fake)
+                self.assertEqual(result["outcome"], "succeeded")
+                self.assertEqual(result["diagnostics"][0]["path"], str(journal_path))
+                self.assertIn("ValueError", result["diagnostics"][0]["reason"])
+        (run / "job-receipt.json").write_text("{}", encoding="utf-8")
+        result = jobs.status(run, transport=fake)
+        self.assertEqual(result["outcome"], "no_job")
+        self.assertEqual(len(result["diagnostics"]), 2)
+        self.assertEqual(sum(call[0] == "submit" for call in fake.calls), 1)
+
+    def test_conflicting_receipt_id_reports_diagnostic_and_keeps_journal_id(self):
+        fake = FakeTransport()
+        self.start(fake)
+        run = self.work / "training"
+        receipt_path = run / "job-receipt.json"
+        receipt = read_json(receipt_path)
+        receipt["response"]["id"] = "ftjob-different"
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        result = jobs.status(run, transport=fake)
+        self.assertEqual(result["outcome"], "succeeded")
+        self.assertEqual(result["diagnostics"][0]["path"], str(receipt_path))
+        self.assertIn("conflicts", result["diagnostics"][0]["reason"])
+        self.assertEqual(fake.calls[-1], ("GET", "job", "ftjob-test"))
+
+    def test_lost_upload_receipt_status_uses_known_file_only(self):
+        fake = FakeTransport()
+        def save(path, value):
+            if Path(path).name == "train-upload-receipt.json":
+                Path(path).write_text("{", encoding="utf-8")
+                raise OSError("simulated upload receipt failure")
+            return write_json(path, value)
+        with patch.object(jobs, "write_json", side_effect=save):
+            with self.assertRaises(OSError):
+                self.start(fake)
+        result = jobs.status(self.work / "training", transport=fake)
+        self.assertEqual(result["outcome"], "no_job")
+        self.assertEqual(set(result["states"]), {"train"})
+        self.assertEqual([call[0] for call in fake.calls], ["upload", "GET"])
+
+    def test_status_failure_and_timeout_are_not_success(self):
+        fake = FakeTransport(job_state="failed")
+        self.start(fake)
+        run = self.work / "training"
+        self.assertEqual(jobs.status(run, wait=True, transport=fake)["outcome"], "failed")
+        fake.job_state = "running"
+        clock = Clock()
+        result = jobs.status(run, wait=True, transport=fake, clock=clock,
+                             sleep=clock.sleep, timeout_seconds=3, poll_seconds=2)
+        self.assertEqual(result["outcome"], "timeout")
+        self.assertEqual(clock.now, 3)
+
+    def test_unknown_or_missing_job_status_fails_without_retry(self):
+        fake = FakeTransport()
+        self.start(fake)
+        run = self.work / "training"
+        for state in (None, "", "unrecognized", [], {}):
+            fake.job_state = state
+            before = len(fake.calls)
+            with self.subTest(state=state), self.assertRaisesRegex(ValueError, "Unrecognized job status"):
+                jobs.status(run, transport=fake)
+            self.assertEqual(len(fake.calls), before + 1)
+        with patch.object(fake, "status", return_value={"id": "ftjob-test"}) as observe:
+            with self.assertRaisesRegex(ValueError, "Unrecognized job status"):
+                jobs.status(run, transport=fake)
+            observe.assert_called_once()
+        for state in ("pending", "validating_files", "queued", "running", "cancelling"):
+            fake.job_state = state
+            self.assertEqual(jobs.status(run, transport=fake)["outcome"], "pending")
+        self.assertEqual(sum(call[0] == "submit" for call in fake.calls), 1)
+
+    def test_unknown_file_status_stops_before_submit_and_status_does_not_retry(self):
+        fake = FakeTransport(file_states={"file-train": ["unrecognized"]})
+        with self.assertRaisesRegex(ValueError, "Unrecognized file status"):
+            self.start(fake)
+        self.assertEqual([call[0] for call in fake.calls], ["upload", "upload", "GET"])
+        with self.assertRaisesRegex(ValueError, "Unrecognized file status"):
+            jobs.status(self.work / "training", transport=fake)
+        self.assertEqual([call[0] for call in fake.calls], ["upload", "upload", "GET", "GET"])
+        with patch.object(fake, "status", return_value={"id": "file-train"}) as observe:
+            with self.assertRaisesRegex(ValueError, "Unrecognized file status"):
+                jobs.status(self.work / "training", transport=fake)
+            observe.assert_called_once()
+        self.assertTrue(list((self.work / "training" / "observations").glob("*.json")))
+
+    def test_invalid_inputs_do_not_load_sdk(self):
+        train, val, config = self.inputs()
+        train.write_bytes(b'{"messages":[],"oracle":"not allowed"}')
+        with patch.object(jobs, "sdk_client", side_effect=AssertionError("SDK must stay unloaded")):
+            with self.assertRaises(ValueError):
+                jobs.start(train, val, config, self.work / "invalid")
+        self.assertFalse((self.work / "invalid").exists())
+
+    def test_poll_options_must_be_positive_finite_before_send(self):
+        train, val, config = self.inputs()
+        fake = FakeTransport()
+        for invalid in (0, -1, float("nan"), float("inf"), True):
+            for option in ("poll_seconds", "timeout_seconds"):
+                with self.subTest(option=option, value=invalid), self.assertRaises(ValueError):
+                    jobs.start(train, val, config, self.work / "invalid",
+                               transport=fake, **{option: invalid})
+        self.assertFalse(fake.calls)
+
+    def test_training_validation_and_overlap(self):
+        train, val, config_path = self.inputs()
+        val.write_bytes(train.read_bytes())
+        with self.assertRaisesRegex(ValueError, "overlap"):
+            jobs.prepare(train, val, config_path, self.work / "invalid")
+        config = read_json(config_path)
+        for hyperparameters in ({"n_epochs": 0}, {"batch_size": True},
+                                {"learning_rate_multiplier": float("inf")}, {"unknown": 1}):
+            with self.subTest(hyperparameters=hyperparameters), self.assertRaises(ValueError):
+                jobs.training_config({**config, "hyperparameters": hyperparameters})
+        train.write_text('{"messages":[{"role":"user","content":"x"},'
+                         '{"role":"assistant","content":"y"}]}\n', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "at least 10"):
+            jobs.prepare(train, val, config_path, self.work / "invalid")
+
+    def test_size_limit_checked_before_upload(self):
+        train, val, config = self.inputs()
+        fake = FakeTransport()
+        with patch.object(jobs, "MAX_UPLOAD_BYTES", 1), self.assertRaisesRegex(ValueError, "512 MB"):
+            jobs.start(train, val, config, self.work / "oversize", transport=fake)
+        self.assertFalse(fake.calls)
+        self.assertFalse((self.work / "oversize").exists())
+
+    def test_execute_once_writes_before_send_and_never_replays(self):
+        path = self.prepare()
+        sent = []
+        def send():
+            self.assertTrue(list((self.work / "attempts").glob("*.started.json")))
+            sent.append(True)
+            return {"id": "known-response"}
+        options = dict(operation="test", input_path=path, target_id="test",
+                       run_dir=self.work, payload={"input": 1}, send=send)
+        execute_once(**options)
+        with self.assertRaises(FileExistsError):
+            execute_once(**options)
+        self.assertEqual(sent, [True])
+
+    def test_cli_status_exit_codes_and_visible_timeout(self):
+        spec = importlib.util.spec_from_file_location("train_cli", ROOT / "scripts" / "train.py")
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        for outcome in ("succeeded", "pending", "failed", "cancelled", "timeout", "no_job"):
+            with self.subTest(outcome=outcome), patch.object(
+                    jobs, "status", return_value={"outcome": outcome}), patch("sys.stdout", new=io.StringIO()):
+                self.assertEqual(cli.main(["status", "--run-dir", str(self.work)]),
+                                 0 if outcome in {"succeeded", "pending"} else 1)
+        with patch.object(jobs, "status", side_effect=TimeoutError("deadline exceeded")), patch(
+                "sys.stderr", new=io.StringIO()) as stderr:
+            self.assertEqual(cli.main(["status", "--run-dir", str(self.work), "--wait"]), 1)
+            self.assertEqual(json.loads(stderr.getvalue())["outcome"], "timeout")
 
     def test_endpoint_rejects_credentials_redirect_targets(self):
         for url in ("https://example.org/api/projects/lab",
@@ -202,8 +435,7 @@ class TrainingTests(Workspace):
             jobs.validate_rows(b'{"messages":[],"oracle":"never upload"}')
         with self.assertRaises(ValueError):
             jobs.training_config({"project_endpoint": "https://example.services.ai.azure.com/api/projects/lab",
-                "model": "test", "training_type": "Standard", "hyperparameters": {"batch_size": "auto"},
-                "upload_estimated_cost": 0, "submit_estimated_cost": 10})
+                "model": "test", "training_type": "Standard", "hyperparameters": {"batch_size": "auto"}})
 
 
 class CollectionTests(Workspace):
@@ -285,19 +517,17 @@ class CollectionTests(Workspace):
             load("capture").terminal_response(b"data: [DONE]\n")
 
     def test_hosted_capture_journals_before_send_and_rejects_replay(self):
-        from foundry_distillation_lab.safety import Approval
         spec = importlib.util.spec_from_file_location("hosted_capture",
                                                      ROOT / "deploy" / "hosted-agent" / "capture.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         endpoint = "https://example.services.ai.azure.com/api/projects/lab"
         plan = {"config": {"project_endpoint": endpoint, "model": "teacher",
-                          "max_output_tokens": 10, "estimated_cost_per_model_request": 1}}
+                          "max_output_tokens": 10, "max_model_calls": 5, "max_tool_calls": 5}}
         source = self.work / "plan.json"
         write_json(source, plan)
-        approval = Approval.load(self.approval(source, "collect", endpoint + "|teacher"), "collect", source)
         selected = {"conversation_id": "one", "category": "返品"}
-        capture = module.Capture(plan, selected, approval, self.work)
+        capture = module.Capture(plan, selected, self.work)
 
         class Request:
             method = "POST"
@@ -311,12 +541,11 @@ class CollectionTests(Workspace):
         asyncio.run(capture.request(request))
         self.assertEqual(len(list((self.work / "attempts").glob("*.started.json"))), 1)
         capture.finish_unknown()
-        restarted = module.Capture(plan, selected, approval, self.work)
+        restarted = module.Capture(plan, selected, self.work)
         with self.assertRaises(FileExistsError):
             asyncio.run(restarted.request(request))
 
     def test_hosted_evidence_contains_observed_tools_and_no_invented_state(self):
-        from foundry_distillation_lab.safety import Approval
         spec = importlib.util.spec_from_file_location("evidence_capture",
                                                      ROOT / "deploy" / "hosted-agent" / "capture.py")
         module = importlib.util.module_from_spec(spec)
@@ -324,13 +553,12 @@ class CollectionTests(Workspace):
         endpoint = "https://example.services.ai.azure.com/api/projects/lab"
         plan = {"target": endpoint + "|teacher", "config": {
             "project_endpoint": endpoint, "model": "teacher",
-            "max_output_tokens": 10, "estimated_cost_per_model_request": 1}}
+            "max_output_tokens": 10, "max_model_calls": 5, "max_tool_calls": 5}}
         selected = {"conversation_id": "one", "category": "返品",
                     "input_sha256": hashlib.sha256("返品".encode()).hexdigest(), "prompt": "返品"}
         source = self.work / "plan.json"
         write_json(source, plan)
-        approval = Approval.load(self.approval(source, "collect", plan["target"]), "collect", source)
-        capture = module.Capture(plan, selected, approval, self.work,
+        capture = module.Capture(plan, selected, self.work,
                                  runtime_identity={"framework_agent_name": "mock-test"})
 
         class Request:
@@ -388,8 +616,9 @@ class CollectionTests(Workspace):
                                                      ROOT / "deploy" / "hosted-agent" / "capture.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        capture = module.Capture({"target": "test"}, {"conversation_id": "one", "category": "返品",
-            "input_sha256": "0" * 64}, SimpleNamespace(data={"input_sha256": "1" * 64}), self.work)
+        plan = {"target": "test", "config": {"max_model_calls": 5, "max_tool_calls": 5}}
+        capture = module.Capture(plan, {"conversation_id": "one", "category": "返品",
+            "input_sha256": "0" * 64}, self.work)
         capture.provider_calls = [{"call_id": identifier, "name": "get_order_details",
                                    "arguments": '{"order_id":"ORD-001"}'} for identifier in ("one", "two")]
         with self.assertRaises(RuntimeError):
@@ -399,8 +628,8 @@ class CollectionTests(Workspace):
         self.assertEqual(capture.events[0]["event"], "tool_blocked")
         self.assertIsNone(capture.finish("failed_or_unknown")["final_state"])
 
-        capture = module.Capture({"target": "test"}, {"conversation_id": "two", "category": "返品",
-            "input_sha256": "0" * 64}, SimpleNamespace(data={"input_sha256": "1" * 64}), self.work)
+        capture = module.Capture(plan, {"conversation_id": "two", "category": "返品",
+            "input_sha256": "0" * 64}, self.work)
         capture.provider_calls = [{"call_id": "observed-submit", "name": "submit_resolution",
                                    "arguments": "{}"}]
 
@@ -448,7 +677,6 @@ class InvocationTests(Workspace):
     def test_guarded_invocation_no_replay_or_faux_capture_success(self):
         path = self.prepare()
         plan = read_json(path)
-        approval = self.approval(path, "collect", plan["target"], requests=1)
 
         class Fake:
             calls = 0
@@ -459,15 +687,10 @@ class InvocationTests(Workspace):
                         "capture_retrieval": "not_verified"}
 
         fake = Fake()
-        with self.assertRaises(ValueError):
-            invocation.invoke(path, run_dir=self.work, transport=fake)
-        self.assertEqual(fake.calls, 0)
-        receipt = invocation.invoke(path, execute=True, approval_path=approval,
-                                    run_dir=self.work, transport=fake)
+        receipt = invocation.invoke(path, run_dir=self.work, transport=fake)
         self.assertFalse(receipt["trace_capture_verified"])
         with self.assertRaises(FileExistsError):
-            invocation.invoke(path, execute=True, approval_path=approval,
-                              run_dir=self.work, transport=fake)
+            invocation.invoke(path, run_dir=self.work, transport=fake)
         self.assertEqual(fake.calls, 1)
 
     def test_parse_raw_response_never_keeps_headers(self):

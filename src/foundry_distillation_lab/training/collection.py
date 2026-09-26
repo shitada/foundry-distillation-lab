@@ -5,23 +5,19 @@ import hashlib
 from pathlib import Path
 
 from ..io import canonical, read_json, read_jsonl, sha256, write_json, write_jsonl
-from ..safety import nonnegative
 from .execution import project_endpoint, target
 
 
 def prepare_collection(input_path, config_path, output_dir):
     config = read_json(config_path)
     if set(config) != {"project_endpoint", "model", "max_output_tokens",
-                       "conversation_seconds", "estimated_cost_per_model_request"}:
+                       "conversation_seconds", "max_model_calls", "max_tool_calls"}:
         raise ValueError("Collection config fields do not match the schema")
     config["project_endpoint"] = project_endpoint(config["project_endpoint"])
     target_id = target(config["project_endpoint"], config["model"])
-    for key in ("max_output_tokens", "conversation_seconds"):
+    for key in ("max_output_tokens", "conversation_seconds", "max_model_calls", "max_tool_calls"):
         if type(config[key]) is not int or config[key] < 1:
-            raise ValueError("Collection token/time limits must be positive integers")
-    nonnegative(config["estimated_cost_per_model_request"], "estimated_cost_per_model_request")
-    if config["estimated_cost_per_model_request"] <= 0:
-        raise ValueError("A conservative positive per-model-request reservation is required")
+            raise ValueError(f"Collection {key} must be a positive integer")
     inputs = []
     for row in read_jsonl(input_path):
         if set(row) != {"conversation_id", "category", "prompt"} or any(

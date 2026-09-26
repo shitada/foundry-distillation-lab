@@ -1,4 +1,4 @@
-"""Prepare locally, or perform one explicitly approved training operation."""
+"""Start supervised training once, or observe an existing run without mutations."""
 
 import argparse
 import json
@@ -9,47 +9,37 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from foundry_distillation_lab.training import jobs
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    prepare = commands.add_parser("prepare", help="Offline JSONL normalization and hash-bound plan")
-    prepare.add_argument("--train", type=Path, required=True)
-    prepare.add_argument("--validation", type=Path, required=True)
-    prepare.add_argument("--config", type=Path, required=True)
-    prepare.add_argument("--output-dir", type=Path, required=True)
-    prepare_submit = commands.add_parser("prepare-submit", help="Offline payload using known upload receipts")
-    prepare_submit.add_argument("--upload-plan", type=Path, required=True)
-    prepare_submit.add_argument("--train-receipt", type=Path, required=True)
-    prepare_submit.add_argument("--validation-receipt", type=Path, required=True)
-    prepare_submit.add_argument("--output", type=Path, required=True)
-    for name in ("upload", "submit", "status"):
-        command = commands.add_parser(name, help="Guarded network operation; no automatic retries")
-        command.add_argument("--execute", action="store_true")
-        command.add_argument("--approval", type=Path)
+    start = commands.add_parser("start", help="Validate, snapshot, upload, wait for files, submit once")
+    start.add_argument("--train", type=Path, required=True)
+    start.add_argument("--validation", type=Path, required=True)
+    start.add_argument("--config", type=Path, required=True)
+    status = commands.add_parser("status", help="GET-only job/file observations with automatic IDs")
+    status.add_argument("--wait", action="store_true", help="Wait for a terminal state within the deadline")
+    for command in (start, status):
         command.add_argument("--run-dir", type=Path, required=True)
-        if name == "status":
-            command.add_argument("--receipt", type=Path, required=True)
-            command.add_argument("--observation-id", required=True)
+        command.add_argument("--timeout-seconds", type=float, default=3600)
+        command.add_argument("--poll-seconds", type=float, default=10)
+    args = parser.parse_args(argv)
+    options = dict(timeout_seconds=args.timeout_seconds, poll_seconds=args.poll_seconds)
+    try:
+        if args.command == "start":
+            result = jobs.start(args.train, args.validation, args.config, args.run_dir, **options)
+            exit_code = 1 if result["response"].get("status") in {"failed", "cancelled"} else 0
         else:
-            command.add_argument("--plan", type=Path, required=True)
-        if name == "upload":
-            command.add_argument("--role", choices=("train", "validation"), required=True)
-    args = parser.parse_args()
-    if args.command == "prepare":
-        result = jobs.prepare(args.train, args.validation, args.config, args.output_dir)
-    elif args.command == "prepare-submit":
-        result = jobs.prepare_submission(args.upload_plan, args.train_receipt,
-                                         args.validation_receipt, args.output)
-    else:
-        options = dict(execute=args.execute, approval_path=args.approval, run_dir=args.run_dir)
-        if args.command == "upload":
-            result = jobs.upload(args.plan, args.role, **options)
-        elif args.command == "submit":
-            result = jobs.submit(args.plan, **options)
-        else:
-            result = jobs.status(args.receipt, observation_id=args.observation_id, **options)
+            result = jobs.status(args.run_dir, wait=args.wait, **options)
+            exit_code = 0 if result["outcome"] in {"succeeded", "pending"} else 1
+    except Exception as exc:
+        print(json.dumps({"outcome": "timeout" if isinstance(exc, TimeoutError) else "error",
+                          "error": str(exc),
+                          "next_step": "Inspect run evidence and use status; never blindly resend."}),
+              file=sys.stderr)
+        return 1
     print(json.dumps(result, ensure_ascii=False, indent=2))
+    return exit_code
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -21,7 +21,7 @@ def stage(output):
     output.mkdir(parents=True, exist_ok=False)
     files = [(here / name, Path(name)) for name in TEMPLATE_FILES]
     files.append((root / "LICENSE", Path("LICENSE")))
-    # Support modules contain JSON/approval code only, not datasets or evaluation code.
+    # Only the runtime and journal are staged, never datasets or evaluation answers.
     files.extend((package / name, Path("foundry_distillation_lab") / name)
                  for name in ("__init__.py", "io.py", "safety.py"))
     files.extend((package / "retail" / name, Path("foundry_distillation_lab") / "retail" / name)

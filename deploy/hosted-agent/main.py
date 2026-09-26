@@ -1,6 +1,5 @@
-"""Cloud-unverified hosted skeleton; all model sends require mounted collection approval."""
+"""Cloud-unverified hosted skeleton; bounded collection from a mounted input plan."""
 
-import argparse
 import asyncio
 import hashlib
 from importlib.metadata import version
@@ -9,14 +8,8 @@ from pathlib import Path
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--execute", action="store_true")
-    args = parser.parse_args()
-    if not args.execute:
-        parser.error("Starting the hosted server requires --execute and mounted approval")
-
     from foundry_distillation_lab.io import read_json, sha256
-    from foundry_distillation_lab.safety import Approval, Journal
+    from foundry_distillation_lab.safety import Journal
     from foundry_distillation_lab.retail import RetailSession
     from agent_framework import Agent, AgentSession, ResponseStream
     from agent_framework.foundry import FoundryChatClient
@@ -31,9 +24,11 @@ def main():
     if plan.get("kind") != "collection" or plan.get("schema_version") != 1:
         raise ValueError("Expected a reviewed collection plan")
     config = plan["config"]
-    approval_path = Path(os.environ["COLLECTION_APPROVAL"])
-    approval = Approval.load(approval_path, "collect", plan_path)
-    approval.assert_target(config["project_endpoint"].rstrip("/") + "|" + config["model"])
+    if plan["target"] != config["project_endpoint"].rstrip("/") + "|" + config["model"]:
+        raise ValueError("Collection model target does not match the plan")
+    for key in ("max_model_calls", "max_tool_calls", "max_output_tokens", "conversation_seconds"):
+        if type(config.get(key)) is not int or config[key] < 1:
+            raise ValueError(f"{key} must be a positive integer")
     run_dir = Path(os.environ["COLLECTION_RUN_DIR"])
     package = Path(__file__).parent / "foundry_distillation_lab"
     runtime_identity = {
@@ -74,16 +69,16 @@ def main():
                 digest = hashlib.sha256(message.text.encode()).hexdigest()
                 matches = [r for r in plan["inputs"] if r["input_sha256"] == digest]
                 if len(matches) != 1:
-                    raise ValueError("Input not uniquely approved")
+                    raise ValueError("Input not uniquely present in the collection plan")
                 selected = matches[0]
-                current = Approval.load(approval_path, "collect", plan_path)
-                current.assert_target(plan["target"])
+                if selected["prompt"] != message.text:
+                    raise ValueError("Collection prompt does not match its recorded identity")
                 journal = Journal(run_dir)
                 attempt_id = "conversation-" + digest[:32]
                 journal.start(attempt_id, {"input_sha256": digest})
                 if session is not None:
                     session.state["started"] = attempt_id
-                capture = Capture(plan, selected, current, run_dir, runtime_identity)
+                capture = Capture(plan, selected, run_dir, runtime_identity)
                 capture.event("attempt_start", input_sha256=digest, source=capture.source,
                               runtime_identity=runtime_identity)
                 status = "failed_or_unknown"

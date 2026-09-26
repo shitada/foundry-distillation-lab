@@ -13,6 +13,8 @@
 
 ### 1. 比較条件と、評価するケースを決める
 
+比較するのは、第4章で選び、第5章で対応履歴を用意した教師モデルと、第6章で評価した学習前後の生徒モデルです。モデルの種類・版と、選択した学習済みモデルを引き継ぎます。モデルを変更する場合は、別の実験版として比較条件を決め直します。
+
 モデルの違いを知りたいのに、問い合わせや業務ルールまで変わっていたら、結果の差が何によるものか分からなくなります。[第4章](04-environment.md)の実験計画を基に、同じケース、注文・在庫などの初期状態、業務ルール、指示文、ツール仕様、採点基準を使います。呼び出し数と時間の上限も固定します。
 
 一件の処理結果が次のケースへ持ち越されないよう、会話ごとに状態を初期化します。教材内の業務日は**2026年8月31日**に固定し、実行日の時計で返品期限などを変えません。
@@ -33,11 +35,11 @@ python scripts\evaluate.py --mode e2e --input data\samples\evaluation-e2e.json -
 
 上の実行は**合成の保存済み記録を採点するオフライン例**で、実測成績ではありません。サンプルの`evidence_kind`は`synthetic_illustration_not_measurement`であり、業務全体の評価には未記録・証拠不足が意図的に含まれます。全行が成功しないこと自体は例の不具合ではありません。入力bundleとレビューの契約は`docs\reference\evaluation-contract.md`を参照します。出力JSONは既存ファイルを上書きせず、同じ出力先で再実行するとexit 2で拒否します。
 
-保存済み/模擬結果による採点と、実推論のrunnerを区別します。**現版の`evaluate.py --send`はローカルrunnerからの直接モデル推論であり、Hosted Agentを呼び出す評価経路ではありません。** Hosted Agent経由の業務全体の実証は別の追試課題として残ります。live推論には`--approval`と新しい`--run-dir`を使いますが、承認が単一対象なので、`models`を1者だけにした入力・対象に対して承認し、1者ずつ実行します。保存された記録をあとで同条件か検査してオフライン集計します。3者を1対象の承認で実行しません。
+保存済み/模擬結果の採点と、実推論を区別します。**`evaluate.py run --mode e2e`は手元からモデルを直接呼ぶ実行で、Hosted Agentの評価経路ではありません。** 共通の問題と`configs\examples\evaluation.json`から作った設定を使い、`--model`と新しい`--run-dir`で対象を分けます。問題ファイルのモデル一覧や出所ラベルは編集しません。自動採点と比較には第6章と同じ`grade`・`compare`を使います。
 
-`configs\examples\evaluation-live.json`はtools/casesが空で予備費が`null`の**意図的に未完成なテンプレート**です。そのまま実行可能な計画でも承認でもありません。対象、ケース、ツール、件数、予算と回復予備費を確定し、入力hashに結び付けて承認するまで送信しません。直接モデル経路のChat CompletionsとHosted Agentの契約を混同せず、実環境の認証・SDK互換性・提供モデルは別途確認します。
+評価②では実際の小売ツール仕様と指示文に合う問題を用意し、3者で共用します。教師の配置名は設定の`targets.teacher`に追加し、`--model teacher`で選びます。生徒は`base`と`fine_tuned`です。実行前に対象・呼び出し上限・費用見積りを確認します。最初の通常ケースで接続も確認し、その時間と使用量を本評価へ含めます。
 
-live入力はcases/messages/toolsとendpoint/deployment/configを内包する自己完結したbundleです。外部データファイルを実行中に参照して差し替える方式ではありません。ファイル全体のSHA256を承認に結び付け、最初に読んだbytesのdigestも照合します。各モデル要求の送信前に予算を予約してjournalへ記録し、SDKの暗黙の再試行を無効にします。timeout等で結果が不明なら、承認が残っていても無条件に再送してはいけません。
+入力・設定と送信記録は自動保存されます。呼び出し上限やエラーで停止し、自動再試行はしません。結果不明時は元の要求を確認します。未試行や欠測も分母に残し、自動採点でも判断できないケースは比較を保留します。
 
 保存済みHosted Agent観測には、別の**オフラインimport**があります。
 
@@ -46,11 +48,11 @@ python scripts\evaluate.py --mode e2e --input data\samples\evaluation-hosted-cas
 python scripts\evaluate.py --mode e2e --input runs\hosted-import-demo.json --output runs\hosted-import-demo-scores.json
 ```
 
-この同梱captureも合成例で、実際のHosted Agent実行ではありません。入力・agent/model/endpoint・toolsのidentityと保存済み観測を照合し、欠けたイベントや最終状態を捏造しません。例はteacherの1記録のみで、他の予定枠は未記録です。captureのreviewは元情報として残しますが、新しいrecordのhashへ自動で再承認しません。モデルHTTPだけの旧`foundry-responses-capture`は、実際のツール実行や副作用の証拠を欠くため、この業務全体の記録の取り込みの代替にはできません。
+この同梱captureも合成例で、実際のHosted Agent実行ではありません。入力・agent/model/endpoint・toolsのidentityと保存済み観測を照合し、欠けたイベントや最終状態を捏造しません。例はteacherの1記録のみで、他の予定枠は未記録です。captureのreviewは元情報として残しますが、取り込み後の内容確認は別です。モデルHTTPだけの旧`foundry-responses-capture`は、実際のツール実行や副作用の証拠を欠くため、この業務全体の記録の取り込みの代替にはできません。
 
 実際のcapture実装とRetailSessionを合成HTTP fixtureで接続し、出力した`hosted-retail-evidence`をimport・採点するオフライン結合テストがあります。これはHostedサーバーやSDK・認証の実環境確認ではありません。`final_state_scope: observed_tool_returns_not_store_snapshot`が示す通り、最終状態は観測したツール戻り値の範囲であり、ストア全体のsnapshotや実システムの永続化を証明しません。
 
-実際の配置には第4章の別承認が必要です。Hosted Agentの配置設計でも、先に定めた比較条件と会話ごとの状態分離を守り、配置内容に学習データ・評価用の正解・採点コードを入れません。
+実際の配置前に、第4章の対象環境と保持費を確認します。Hosted Agentの配置設計でも、先に定めた比較条件と会話ごとの状態分離を守り、配置内容に学習データ・評価用の正解・採点コードを入れません。
 
 モデル配置の計画だけなら、次のコマンドでローカルJSONを作れます。
 
@@ -58,7 +60,7 @@ python scripts\evaluate.py --mode e2e --input runs\hosted-import-demo.json --out
 python scripts\deployment.py prepare --config configs\examples\cloud-deployment.json --output runs\deployment-plan.json
 ```
 
-出力には対象resource ID、runの所有者識別子、SKU/model、見積り、API version等が入ります。これはARM要求の**計画作成**で、資源作成やリージョンの利用可否確認ではありません。例のID、モデル、金額は差替え用です。`deploy`・`status`・`cleanup`はネットワーク操作であり、各段階の明示的承認が必要です。新しい所有者識別子を生成しただけで、既存資源を自分の所有物として扱ってはいけません。Hosted Agentのstageは小売実行に必要なファイルだけをallowlistで収録しますが、Hosted Agent配置の成功をこのモデル配置計画で検証したとは言えません。
+出力には対象resource ID、runの所有者識別子、SKU/model、API version等が入ります。これはARM要求の**計画作成**で、資源作成やリージョンの利用可否確認ではありません。`deploy`・`status`・`cleanup`はネットワーク操作です。新しい所有者識別子を生成しただけで、既存資源を自分の所有物として扱ってはいけません。Hosted Agentのstageは小売実行に必要なファイルだけをallowlistで収録しますが、Hosted Agent配置の成功をこのモデル配置計画で検証したとは言えません。
 
 ### 3. 業務品質と、重大な違反を確認する
 
@@ -77,7 +79,7 @@ python scripts\deployment.py prepare --config configs\examples\cloud-deployment.
 
 その際、モデルが不正な操作を要求したこと、ツール側が拒否して実行を防いだこと、実際に不正な状態変更が行われたことを、別々に数えます。ツールが被害を防いだことは重要ですが、それだけでモデルの判断まで正しかったことにはなりません。
 
-自動採点後に、人間が説明と状態をレビューします。注文番号や金額の形式が合っていても、返金できない理由の説明が誤っていることがあります。形式検査を通ったことと、内容まで正しいことを区別します。
+ツールや状態のルール検査に加え、採点用モデルが説明の内容を評価します。注文番号や金額の形式が合っていても、返金できない理由の説明が誤っていることがあります。利用者は自動採点後の比較表で代表例を読み、形式と内容の両方を確認します。
 
 ### 4. 成功・失敗・未確認を分けて記録する
 
@@ -91,9 +93,9 @@ python scripts\deployment.py prepare --config configs\examples\cloud-deployment.
 | 確認中・成否不明 | 証拠の不足やレビュー未完了で、成功とも失敗とも確定できない |
 | 未実施 | そのケースをまだ実行していない |
 
-採点行の状態は`technical_failure`（技術的失敗）、`quality_failure`（品質不合格）、`review_pending`（人間確認待ち）、`confirmed_success`（確認済み成功）で区別します。この四つの値だけで上の五分類すべてを表せるわけではないため、実行記録や判定理由も一緒に確認し、未実施や証拠不足をモデルの業務上の失敗へ読み替えません。
+自動比較では`automatic_decision`と`assessment_source`で判定とその出所を区別します。従来の`status`は`technical_failure`（技術的失敗）、`quality_failure`（品質不合格）、`review_pending`（人間確認待ち）、`confirmed_success`（確認済み成功）のまま残ります。自動判定だけで`confirmed_success`にはなりません。実行記録や判定理由も一緒に確認し、未実施や証拠不足をモデルの業務上の失敗へ読み替えません。
 
-業務全体の確認済み成功には、そのケースの**証拠に結び付いた明示的な人間のレビュー記録**が必要です。自動チェックを通っただけで成功へ昇格しません。証拠が不足している場合も、人が合格と書くだけで確認済みにしてはいけません。
+業務全体の確認済み成功には、そのケースの**証拠に結び付いた明示的な人間のレビュー記録**が必要です。自動採点による推定とは別の扱いです。必要な場合の人による確認手順は[評価仕様](../reference/evaluation-contract.md#必要な場合の人による確認)を参照できます。証拠が不足している場合は、人が合格と書くだけで確認済みにしてはいけません。
 
 ### 5. 時間・使用量・評価した範囲を集計する
 
@@ -103,8 +105,31 @@ python scripts\deployment.py prepare --config configs\examples\cloud-deployment.
 
 全体の集計に加え、返品・交換・配送などの種類別の件数、成功・失敗、代表的な失敗例を残します。未試行や繰り返し回数の不足も示し、一部の成功だけを基に業務全体へ結論を広げません。
 
+### 6. 費用比較へ渡す3者の結果をまとめる
+
+この章で取得した評価②の保存先を`runs\e2e-teacher`、`runs\e2e-base`、`runs\e2e-fine-tuned`とします。[第6章の手順6.1](../how-to/06-training-and-evaluation.md#61-採点用モデルと設定を準備する)で用意した`runs\grading-config.json`を3者で共用し、同じ採点基準で自動採点します。
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate.py grade --run-dir runs\e2e-teacher --config runs\grading-config.json --output-dir runs\e2e-teacher-graded
+.\.venv\Scripts\python.exe scripts\evaluate.py grade --run-dir runs\e2e-base --config runs\grading-config.json --output-dir runs\e2e-base-graded
+.\.venv\Scripts\python.exe scripts\evaluate.py grade --run-dir runs\e2e-fine-tuned --config runs\grading-config.json --output-dir runs\e2e-fine-tuned-graded
+```
+
+次のコマンドで学習前後の比較表を作ります。`runs\e2e-comparison\comparison.csv`は読むための表です。第6章と同じ列で、応答・参照例・判定理由、時間・使用量の代表例を確認します。行ごとの判定の書き込みはしません。
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate.py compare --before runs\e2e-base-graded --after runs\e2e-fine-tuned-graded --output-dir runs\e2e-comparison
+```
+
+次の`combine`は採点済みの3者のrunをまとめるオフライン処理です。第8章には`runs\e2e-combined\scores.json`を渡します。評価対象モデルを呼び直したり、自動判定を確認済みの業務成功へ変えたりする操作ではありません。
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate.py combine --run-dirs runs\e2e-teacher-graded `
+  runs\e2e-base-graded runs\e2e-fine-tuned-graded --output-dir runs\e2e-combined
+```
+
 ## 出力
-ケース・モデル・反復ごとの記録、暫定自動採点、人間レビュー、エラー分類、時間・使用量の表です。`overall`、`per_model`、`per_case`の分母には予定された未記録枠も含めます。基盤障害、未試行、呼び出し上限到達を通常の業務失敗に埋め込まず、母数とともに表示します。未知の使用量は`null`です。
+ケース・モデル・反復ごとの記録、自動判定と理由、比較表、エラー分類、時間・使用量の表です。人による確認を行った場合は、その記録を自動判定と分けて保持します。`overall`、`per_model`、`per_case`の分母には予定された未記録枠も含めます。基盤障害、未試行、呼び出し上限到達を通常の業務失敗に埋め込まず、母数とともに表示します。未知の使用量は`null`です。
 
 `usage_total`は欠測が一つでもあれば`null`です。`usage_known_subtotal`と`usage_reported_n`は観測済み部分を説明する値で、総費用の根拠としてそのまま使いません。tokenの単位は`input_tokens`、`output_tokens`、`cached_input_tokens`で、cacheは入力の内数です。第8章の`report.py --prepare-evaluation`で保存済み採点reportを費用入力へ接続できます。行と集計を照合し、全予定枠で完全に観測された項目だけを要求当たり平均へ変換します。未知のusage・レビュー、runtime差を埋めたり、価格を取得したりはしません。
 
@@ -114,7 +139,7 @@ python scripts\deployment.py prepare --config configs\examples\cloud-deployment.
 未試行をモデルの失敗として扱わず、確認中のものも成功へ加えません。費用集計では失敗・回復の呼び出しも支出へ含め、使用量が取れなかった処理を無料として扱わないことを、第8章へ引き継ぎます。
 
 ## 完了条件
-全予定件数の状態が追跡でき、3者の条件が一致し、主要な境界と人間レビューを満たしています。欠測や条件混在があれば比較不能として保留します。
+全予定件数の状態が追跡でき、3者の条件が一致し、自動採点後の代表例と主要な境界を確認できています。欠測や条件混在があれば比較不能として保留します。比較を終えたことと、業務成功・採用を確定したことは区別します。
 
 ## 限界
 実環境での通し評価は未実施です。保存済み模擬結果の採点成功はモデル品質の検証ではありません。反復不足の95パーセンタイルや、小さな種類別集計の成功率は不安定です。最終評価用データを改善へ使わず、不確実性を記録します。

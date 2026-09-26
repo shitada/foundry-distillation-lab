@@ -206,6 +206,10 @@ def prepare_cost_input(evaluation, config, source_sha256):
         reasons.append("Illustrative or insufficiently identified evaluation evidence cannot become measured production evidence.")
     if row_evidence_unknown:
         reasons.append("At least one row has unknown evidence provenance; a root label cannot promote it.")
+    model_graded = any(row.get("model_review") is not None for row in raw_rows)
+    if model_graded:
+        reasons.append("Model grading is provisional, not human-confirmed business success. "
+                       "Grader usage is evaluation overhead, not customer-request inference usage.")
     model_audit = {}
     for name, rows in groups.items():
         means, audit = _summary(rows, mapping(per_model[name], name))
@@ -253,6 +257,9 @@ def prepare_cost_input(evaluation, config, source_sha256):
                                           "tool_contract_sha256": row.get("tool_contract_sha256"),
                                           "evidence_sha256": row.get("evidence_sha256"),
                                           "review": copy.deepcopy(row.get("review")),
+                                          "model_review": copy.deepcopy(row.get("model_review")),
+                                          "automatic_decision": row.get("automatic_decision"),
+                                          "assessment_source": row.get("assessment_source"),
                                           "provenance": copy.deepcopy(row.get("provenance"))}
                                          for row in rows]})
         model_audit[name] = audit
@@ -264,6 +271,7 @@ def prepare_cost_input(evaluation, config, source_sha256):
         "runtime_matches": runtime_matches,
         "comparable": same_cohort and same_conditions and runtime_matches,
         "production_evidence": False, "observed_category_mix": None,
+        "model_grading": copy.deepcopy(evaluation.get("grading")),
         "assumptions": copy.deepcopy(assumptions), "per_model": model_audit,
         "hold_reasons": reasons,
     }

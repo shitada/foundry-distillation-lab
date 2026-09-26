@@ -46,7 +46,8 @@ class ChapterTwoFiguresTests(unittest.TestCase):
                          sorted(int(node.get("y")) for node in boxes))
         labels = " ".join(node.text or "" for node in root.findall(".//s:text", NS))
         self.assertIn("今後の追加導入費", labels)
-        self.assertIn("教師ありファインチューニング（SFT）", labels)
+        self.assertIn("教師ありファインチューニング", labels)
+        self.assertNotIn("SFT", labels)
 
     def test_chapter_images_resolve(self):
         text = CHAPTER.read_text(encoding="utf-8")

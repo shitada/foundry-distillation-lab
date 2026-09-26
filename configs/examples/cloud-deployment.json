@@ -6,6 +6,5 @@
   "model_name": "REPLACE_WITH_SELECTED_FINE_TUNED_MODEL_ID",
   "model_version": "1",
   "sku": "GlobalStandard",
-  "capacity": 1,
-  "estimated_cost": 100
+  "capacity": 1
 }

@@ -7,7 +7,6 @@ import re
 import subprocess
 
 from ..io import parse_json, read_json, sha256, write_json
-from ..safety import nonnegative
 from .execution import checked_plan, execute_once, target
 
 
@@ -15,7 +14,7 @@ def validate(plan):
     if (plan.get("schema_version") != 1 or plan.get("kind") != "hosted-invocation"
             or set(plan) != {"schema_version", "kind", "collection_plan_sha256", "model_target",
                              "project_endpoint", "model", "agent_endpoint", "agent_version",
-                             "target", "input", "timeout_seconds", "estimated_cost"}):
+                             "target", "input", "timeout_seconds"}):
         raise ValueError("Invalid hosted invocation plan")
     if plan["model_target"] != target(plan["project_endpoint"], plan["model"]):
         raise ValueError("Model target mismatch")
@@ -25,12 +24,9 @@ def validate(plan):
             or not re.fullmatch(r"[A-Za-z0-9_-]+/versions/[1-9][0-9]*", endpoint[len(prefix):])
             or endpoint.rsplit("/", 1)[1] != plan["agent_version"]
             or plan["target"] != endpoint):
-        raise ValueError("Use the exact versioned agent endpoint from the approved project")
+        raise ValueError("Use the exact versioned agent endpoint from the configured project")
     if type(plan["timeout_seconds"]) is not int or not 1 <= plan["timeout_seconds"] <= 3600:
         raise ValueError("timeout_seconds must be 1..3600")
-    nonnegative(plan["estimated_cost"], "estimated_cost")
-    if plan["estimated_cost"] <= 0:
-        raise ValueError("Reserve a positive conservative cost for the complete invocation")
     item = plan["input"]
     if (set(item) != {"conversation_id", "category", "prompt", "input_sha256"}
             or not all(isinstance(value, str) and value for value in item.values())
@@ -43,19 +39,18 @@ def prepare(collection_plan_path, config_path, output_dir):
     collection = checked_plan(collection_plan_path, "collection")
     config = read_json(config_path)
     if set(config) != {"conversation_id", "agent_endpoint", "agent_version",
-                       "timeout_seconds", "estimated_cost"}:
+                       "timeout_seconds"}:
         raise ValueError("Invalid invocation configuration")
     matches = [item for item in collection["inputs"]
                if item["conversation_id"] == config["conversation_id"]]
     if len(matches) != 1:
-        raise ValueError("Select exactly one approved collection input")
+        raise ValueError("Select exactly one collection input")
     plan = validate({"schema_version": 1, "kind": "hosted-invocation",
         "collection_plan_sha256": sha256(collection_plan_path), "model_target": collection["target"],
         "project_endpoint": collection["config"]["project_endpoint"],
         "model": collection["config"]["model"], "agent_endpoint": config["agent_endpoint"],
         "agent_version": config["agent_version"], "target": config["agent_endpoint"],
-        "input": matches[0], "timeout_seconds": config["timeout_seconds"],
-        "estimated_cost": config["estimated_cost"]})
+        "input": matches[0], "timeout_seconds": config["timeout_seconds"]})
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
     write_json(output_dir / "invocation-plan.json", plan)
@@ -104,12 +99,12 @@ class AzdTransport:
         return parse_response(result.stdout)
 
 
-def invoke(plan_path, *, execute=False, approval_path=None, run_dir, transport=None):
+def invoke(plan_path, *, run_dir, transport=None):
     plan = validate(checked_plan(plan_path, "hosted-invocation"))
     transport = transport or AzdTransport()
-    result = execute_once(execute=execute, approval_path=approval_path, operation="collect",
+    result = execute_once(operation="collect",
         input_path=plan_path, target_id=plan["target"], run_dir=run_dir, payload=plan,
-        estimated_cost=plan["estimated_cost"], send=lambda: transport.invoke(plan))
+        send=lambda: transport.invoke(plan))
     receipt = {"schema_version": 1, "kind": "hosted-invocation-receipt",
                "plan_sha256": sha256(plan_path), "target": plan["target"],
                "input_sha256": plan["input"]["input_sha256"],

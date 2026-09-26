@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="626" viewBox="0 0 680 626" role="img" aria-labelledby="title desc">
+  <title id="title">同じ問題で、学習前後の判断を比べる</title>
+  <desc id="desc">共通の評価問題と採点基準を固定し、学習前の生徒モデルを評価して結果を保存する。教師ありファインチューニングを行い、学習済みモデルを評価できる状態にして、同じ問題で学習後を測る。最後に、問題ごとの改善・悪化・変化なしを比べる。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="680" height="626" fill="#ffffff"/>
+  <g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" text-anchor="middle" fill="#172033">
+    <text x="340" y="32" font-size="23" font-weight="bold">同じ問題で、学習前後の判断を比べる</text>
+    <rect x="36" y="62" width="608" height="56" rx="10" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="340" y="96" font-size="19" font-weight="bold">共通の評価①の問題と採点基準を固定</text>
+  </g>
+  <g stroke="#64748b" stroke-width="2" fill="none">
+    <line x1="340" y1="120" x2="340" y2="137" marker-end="url(#arrow)"/>
+    <line x1="340" y1="215" x2="340" y2="227" marker-end="url(#arrow)"/>
+    <line x1="340" y1="305" x2="340" y2="317" marker-end="url(#arrow)"/>
+    <line x1="340" y1="395" x2="340" y2="407" marker-end="url(#arrow)"/>
+    <line x1="340" y1="485" x2="340" y2="497" marker-end="url(#arrow)"/>
+  </g>
+  <g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" text-anchor="middle" fill="#172033">
+    <rect x="36" y="145" width="608" height="68" rx="10" fill="#eff6ff" stroke="#60a5fa"/>
+    <text x="340" y="173" font-size="20" font-weight="bold">1. 学習前の生徒モデルで測る</text>
+    <text x="340" y="199" font-size="16">用意した履歴から次の行動を生成し、結果を保存</text>
+    <rect x="36" y="235" width="608" height="68" rx="10" fill="#fff7ed" stroke="#f59e0b"/>
+    <text x="340" y="263" font-size="20" font-weight="bold">2. 教師ありファインチューニング</text>
+    <text x="340" y="289" font-size="16">学習用データと検証用データを使う</text>
+    <rect x="36" y="325" width="608" height="68" rx="10" fill="#f1f5f9" stroke="#94a3b8"/>
+    <text x="340" y="353" font-size="20" font-weight="bold">3. 学習済みモデルを評価できる状態にする</text>
+    <text x="340" y="379" font-size="16">候補の選択理由と、使用するモデルの版を記録</text>
+    <rect x="36" y="415" width="608" height="68" rx="10" fill="#eff6ff" stroke="#60a5fa"/>
+    <text x="340" y="443" font-size="20" font-weight="bold">4. 学習済みの生徒モデルで測る</text>
+    <text x="340" y="469" font-size="16">最初に固定した問題・履歴・採点基準を使う</text>
+    <rect x="36" y="505" width="608" height="68" rx="10" fill="#f5f3ff" stroke="#a78bfa"/>
+    <text x="340" y="533" font-size="20" font-weight="bold">5. 問題ごとに、学習前後の結果を比べる</text>
+    <text x="340" y="559" font-size="16">改善・悪化・変わらない場面と、その理由を確認</text>
+    <text x="340" y="606" font-size="15">学習前後の結果は別々に保存し、後から比較します。</text>
+  </g>
+</svg>

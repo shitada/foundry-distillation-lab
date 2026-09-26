@@ -273,6 +273,35 @@ class EvaluationCostBridgeTests(unittest.TestCase):
         self.assertFalse(prepared["variants"]["teacher"]["quality"]["review_complete"])
         self.assertIsNone(build_report(prepared)["variants"]["teacher"]["projected_cost_per_reviewed_success"])
 
+    def test_model_grading_is_retained_but_not_human_confirmation(self):
+        for row in self.evaluation["rows"]:
+            row.update(status="review_pending", confirmed_business_success=False,
+                       text_review="unreviewed", review=None,
+                       automatic_decision="success", assessment_source="model")
+            row["model_review"] = {
+                "decision": "success", "reason": "Synthetic model grading fixture",
+                "usage": {"input_tokens": 900, "output_tokens": 100, "cached_input_tokens": 0},
+                "evidence_sha256": row["evidence_sha256"],
+            }
+        grading = {"source": "synthetic_test", "actual_cost": None,
+                   "usage": {"input_tokens": 5400, "output_tokens": 600, "cached_input_tokens": 0}}
+        self.evaluation["grading"] = grading
+        self.refresh_summaries()
+        prepared = self.prepared()
+        self.assertEqual(prepared["evaluation_bridge"]["model_grading"], grading)
+        self.assertIn("Model grading is provisional", " ".join(prepared["evaluation_bridge"]["hold_reasons"]))
+        for variant in prepared["variants"].values():
+            self.assertFalse(variant["quality"]["review_complete"])
+            self.assertIsNone(variant["quality"]["successful_requests"])
+            self.assertEqual(variant["usage_per_request"]["input_tokens"], 200)
+        audit = prepared["evaluation_bridge"]["per_model"]["teacher"]["row_provenance"][0]
+        self.assertEqual(audit["model_review"], self.evaluation["rows"][0]["model_review"])
+        self.assertEqual(audit["automatic_decision"], "success")
+        self.assertEqual(audit["assessment_source"], "model")
+        report = build_report(prepared)
+        self.assertIsNone(report["variants"]["teacher"]["projected_cost_per_reviewed_success"])
+        self.assertEqual(report["decision_draft"]["decision"], "hold")
+
     def test_reviewed_failure_and_success_use_all_reviewed_outcomes(self):
         self.evaluation["rows"][0].update(status="quality_failure", confirmed_business_success=False,
                                          text_review="quality_failure")

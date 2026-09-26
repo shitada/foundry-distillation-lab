@@ -7,9 +7,9 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
-from unittest.mock import Mock
 import uuid
 
 from foundry_distillation_lab.evaluation import evaluate, evidence_sha256, import_hosted
@@ -308,6 +308,58 @@ class HostedCliTests(unittest.TestCase):
 
 
 class HostedEmitterIntegrationTests(unittest.TestCase):
+    def test_model_and_tool_limits_block_before_extra_work(self):
+        spec = importlib.util.spec_from_file_location(
+            "hosted_capture_limits_test", ROOT / "deploy" / "hosted-agent" / "capture.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        endpoint = "https://example.invalid/api/projects/fixture"
+        plan = {"target": endpoint + "|fixture", "config": {
+            "project_endpoint": endpoint, "model": "fixture", "max_output_tokens": 128,
+            "max_model_calls": 1, "max_tool_calls": 1}}
+        selected = {"conversation_id": "limited-case", "category": "synthetic",
+                    "prompt": "fixture", "input_sha256": hashlib.sha256(b"fixture").hexdigest()}
+
+        class Request:
+            method = "POST"
+            url = endpoint + "/openai/v1/responses"
+
+            async def aread(self):
+                return canonical({"model": "fixture", "store": False, "max_output_tokens": 128,
+                                  "input": [{"role": "user", "content": "fixture"}]}).encode()
+
+        with tempfile.TemporaryDirectory() as directory:
+            capture = module.Capture(plan, selected, directory)
+            asyncio.run(capture.request(Request()))
+            with self.assertRaisesRegex(RuntimeError, "Model call limit"):
+                asyncio.run(capture.request(Request()))
+            self.assertEqual(capture.counter, 1)
+            self.assertEqual(len(list((Path(directory) / "attempts").glob("*.started.json"))), 1)
+            capture.finish_unknown()
+
+            called = []
+            capture.provider_calls = [
+                {"name": "get_order_details", "arguments": '{"order_id":"ORD-0001"}', "call_id": "first"},
+                {"name": "get_order_details", "arguments": '{"order_id":"ORD-0002"}', "call_id": "second"}]
+            capture.call_tool("get_order_details", {"order_id": "ORD-0001"}, lambda: called.append("first"))
+            with self.assertRaisesRegex(RuntimeError, "Tool call limit"):
+                capture.call_tool("get_order_details", {"order_id": "ORD-0002"}, lambda: called.append("second"))
+            self.assertEqual(called, ["first"])
+            self.assertTrue(capture.tool_failure)
+            capture.finish("failed_or_unknown")
+            evidence = loads((Path(directory) / f"{capture.prefix}.evidence.json").read_text(encoding="utf-8"))
+            self.assertEqual(evidence["status"], "unknown")
+            self.assertIsNone(evidence["usage"]["input_tokens"])
+
+    def test_call_limits_must_be_explicit_positive_integers(self):
+        spec = importlib.util.spec_from_file_location(
+            "hosted_capture_invalid_limits_test", ROOT / "deploy" / "hosted-agent" / "capture.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        for value in (None, True, 0, -1, 1.5):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                module.Capture({"config": {"max_model_calls": value, "max_tool_calls": 2}}, {}, ROOT)
+
     def test_actual_emitter_tool_events_import_without_reconstructing_missing_state(self):
         """Actual local collector, synthetic HTTP fixture: no Hosted service is run."""
         from foundry_distillation_lab.retail import RetailSession
@@ -326,11 +378,9 @@ class HostedEmitterIntegrationTests(unittest.TestCase):
                         "input_sha256": hashlib.sha256(user_input.encode("utf-8")).hexdigest()}
             plan = {"target": endpoint + "|" + model, "config": {
                 "project_endpoint": endpoint, "model": model, "max_output_tokens": 128,
-                "estimated_cost_per_model_request": 0.01,
+                "max_model_calls": 12, "max_tool_calls": 24,
             }}
-            approval = Mock()
-            approval.data = {"input_sha256": hashlib.sha256(canonical(plan).encode()).hexdigest()}
-            capture = module.Capture(plan, selected, approval, folder,
+            capture = module.Capture(plan, selected, folder,
                                      {"framework_agent_name": "retail-trace-collector",
                                       "package_versions": {"fixture": "synthetic"},
                                       "retail_hashes": {}, "runtime_hashes": {}, "hosted_binding": None})
@@ -400,7 +450,9 @@ class HostedEmitterIntegrationTests(unittest.TestCase):
             self.assertFalse(score["rows"][0]["confirmed_business_success"])
             self.assertIsNone(score["rows"][0]["usage"]["input_tokens"])
             self.assertEqual(imported["records"][0]["events"], evidence["events"])
-            self.assertEqual(approval.reserve.call_count, 3)
+            self.assertEqual(capture.counter, 3)
+            self.assertEqual(evidence["source"]["collection_plan_sha256"],
+                             hashlib.sha256(canonical(plan).encode()).hexdigest())
             self.assertEqual(len(score["rows"][0]["provenance"]["capture_files"]), 3)
             for linked in evidence["capture_files"]:
                 self.assertEqual(linked["sha256"], hashlib.sha256((folder / linked["path"]).read_bytes()).hexdigest())

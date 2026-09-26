@@ -18,7 +18,7 @@
 <line x1="290" x2="290" y1="266" y2="283" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
 <rect x="20" y="288" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
 <text x="290" y="316" font-size="19" text-anchor="middle" font-weight="bold">4. 生徒モデルへ追加学習する</text>
-<text x="290" y="340" font-size="16" text-anchor="middle">教師ありファインチューニング（SFT）</text>
+<text x="290" y="340" font-size="16" text-anchor="middle">教師ありファインチューニング</text>
 <line x1="290" x2="290" y1="358" y2="375" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
 <rect x="20" y="380" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
 <text x="290" y="408" font-size="19" text-anchor="middle" font-weight="bold">5. 学習後も同じ評価①で比べる</text>
