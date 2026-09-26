@@ -304,11 +304,11 @@ python scripts\report.py --prepare-evaluation --input runs\e2e-demo.json --confi
 python scripts\report.py --input runs\evaluation-cost-input.json --output runs\evaluation-cost-report
 ```
 
-最初の入力は本ページ冒頭の評価②デモ report です。`teacher` / `base` / `fine_tuned`の3者をまとめたreportが必要です。モデル別の実runは、[第7章の自動採点](../chapters/07-end-to-end.md#6-費用比較へ渡す3者の結果をまとめる)を終えてから、次のオフライン操作でまとめます。recordsの手作業での転記は不要です。
+最初の入力は本ページ冒頭の評価②デモ report です。`teacher` / `base` / `fine_tuned`の3者をまとめたreportが必要です。モデル別の実runは、[第7章の自動採点](../chapters/07-end-to-end.md#自動採点して比較表を読む)を終えてから、次のオフライン操作でまとめます。recordsの手作業での転記は不要です。
 
 ```powershell
-python scripts\evaluate.py combine --run-dirs runs\e2e-teacher-graded `
-  runs\e2e-base-graded runs\e2e-fine-tuned-graded --output-dir runs\e2e-combined
+python scripts\evaluate.py combine --run-dirs runs\e2e\teacher-graded `
+  runs\e2e\base-graded runs\e2e\fine_tuned-graded --output-dir runs\e2e-combined
 ```
 
 次のコマンドで、3者分の採点結果から費用入力を作ります。
@@ -346,6 +346,26 @@ python scripts\evaluate.py run --mode next-action --input runs\next-action-input
 費用は対象モデルの単価、入力量、出力上限から見積もり、実行後のusage・請求とは分けます。使用量が欠けた場合は0にしません。学習費や配置の保持費は別に確認します。
 
 **この経路はHosted Agentの基盤費・起動時間・監視・分散状態を測るものではありません。** ローカル停止は送信済み要求やクラウド課金の停止を保証しません。
+
+### 第7章で使う評価②の実行と自動採点
+
+[第7章の実践手順](../how-to/07-end-to-end-evaluation.md)では、教材の比較用の問い合わせを生成し、三つのモデルの実行・自動採点・比較をまとめます。手元のPythonが模擬業務ツールを実行し、Foundryのモデルへ結果を返す構成です。
+
+```powershell
+.\.venv\Scripts\python.exe scripts\prepare_evaluation.py --data-dir runs\data --output runs\e2e-input.json
+.\.venv\Scripts\python.exe scripts\evaluate.py study --input runs\e2e-input.json `
+  --config runs\evaluation-config.json --grading-config runs\grading-config.json --output-dir runs\e2e
+```
+
+問い合わせは第3章の業務ルールを基にした教材の比較用データです。準備処理は第5章のデータと照合し、注文が重ならないように選びます。期待する行動・処理結果は評価対象モデルの応答から作りません。これは改善点を調べるための追加の評価であり、未使用の最終評価データによる検証とは区別します。
+
+`study`は`teacher`、`base`、`fine_tuned`の同じ入力・生成条件を確認してから、既存の`run`・`grade`・`compare`の処理を順に実行します。採点基準、ルール検査、ケースごとの状態初期化、モデル・ツール呼び出し上限は共通です。
+
+出力先が既存なら、`runs\e2e-002`のように新しい保存先を割り当てます。利用者が再度コマンドを実行することは新しい実験として記録します。一回の実験内では、応答が不明な要求を自動で再送しません。
+
+各結果フォルダーの`comparison.csv`に三つのモデルの比較、`summary.json`に集計を保存します。`teacher`・`base`・`fine_tuned`に取得結果、対応する`*-graded`に採点結果が残ります。`base-vs-fine-tuned`、`teacher-vs-fine-tuned`、`teacher-vs-base`には従来と同じ詳細比較表を作ります。
+
+三つの採点結果の統合は、[第8章の最初の手順](../chapters/08-cost.md#三つのモデルの評価結果を統合する)で行います。採点用モデルの使用量を評価対象モデルの使用量へ加えることや、自動判定を人による確認済み成功として扱うことはありません。
 
 ## 検証範囲と限界
 

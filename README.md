@@ -73,7 +73,7 @@
 | [04 環境・実験条件と安全](docs/chapters/04-environment.md) | 実行環境と実験計画を準備 | 比較条件・判断基準・費用見積り・停止条件 |
 | [05 教師の履歴と分割](docs/chapters/05-data.md) | `prepare_data.py`、`collect.py` | 分割・監査と最終評価用データの管理 |
 | [06 追加学習と次の行動](docs/chapters/06-training.md) | `train.py`、`evaluate.py` | 評価①の学習前後の差分 |
-| [07 業務全体の評価](docs/chapters/07-end-to-end.md) | `evaluate.py`、`deployment.py` | 評価②・自動採点・3者の集計 |
+| [07 業務全体の評価](docs/chapters/07-end-to-end.md) | [実践手順](docs/how-to/07-end-to-end-evaluation.md)：`prepare_evaluation.py`、`evaluate.py study` | 評価②・自動採点・三つのモデルの比較 |
 | [08 総費用](docs/chapters/08-cost.md) | `report.py` | CSV / JSON / SVG |
 | [09 採用判断](docs/chapters/09-decision.md) | 生成された`decision.md` | 採用・条件付き・見送り・保留 |
 | [10 振り返り](docs/chapters/10-lessons.md) | 実験記録 | 再評価計画と限界 |

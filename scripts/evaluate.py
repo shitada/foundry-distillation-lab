@@ -16,6 +16,7 @@ from foundry_distillation_lab.evaluation.workflow import (  # noqa: E402
     combine_runs, compare_runs, review_run, review_sheet, run_evaluation,
 )
 from foundry_distillation_lab.evaluation.grading import grade_run  # noqa: E402
+from foundry_distillation_lab.evaluation.study import study  # noqa: E402
 from foundry_distillation_lab.io import read_jsonl, sha256, write_json  # noqa: E402
 
 
@@ -42,6 +43,12 @@ def _parser(argv):
         parser.set_defaults(command="score")
         return parser
     commands = parser.add_subparsers(dest="command", required=True)
+    experiment = commands.add_parser("study", help="Run one new LOCAL teacher/base/fine_tuned experiment")
+    experiment.add_argument("--input", required=True, type=Path)
+    experiment.add_argument("--config", required=True, type=Path)
+    experiment.add_argument("--grading-config", required=True, type=Path)
+    experiment.add_argument("--output-dir", required=True, type=Path,
+                            help="Output root; existing experiments get a new numbered sibling")
     run = commands.add_parser("run", help="Execute direct model requests; no retries")
     _mode_input(run)
     run.add_argument("--config", required=True, type=Path)
@@ -71,6 +78,18 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     parser = _parser(argv)
     args = parser.parse_args(argv)
+    if args.command == "study":
+        try:
+            summary = study(args.input, args.config, args.grading_config, args.output_dir)
+        except Exception as exc:
+            print(f"evaluation stopped: {type(exc).__name__}: {exc}", file=sys.stderr)
+            for note in getattr(exc, "__notes__", []):
+                print(note, file=sys.stderr)
+            return 2
+        print(f"study: {summary['status']}; output directory: {summary['output_dir']}")
+        print(f"three-model table: {Path(summary['output_dir']) / 'comparison.csv'}")
+        print(f"summary: {Path(summary['output_dir']) / 'summary.json'}")
+        return 0 if summary["complete"] else 2
     try:
         if args.command == "run":
             report, complete = run_evaluation(args.input, args.config, args.mode, args.model, args.run_dir)

@@ -11,6 +11,17 @@
 
 ## 実施内容
 
+### 三つのモデルの評価結果を統合する
+
+第7章で保存した教師モデル・学習前の生徒モデル・学習済みの生徒モデルの採点結果を、費用計算に使う一つの結果にまとめます。次は第7章の保存先が`runs\e2e`の場合です。再実行した結果を使う場合は、画面に表示された保存先に置き換え、リポジトリのルートフォルダーで実行します。
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate.py combine --run-dirs runs\e2e\teacher-graded `
+  runs\e2e\base-graded runs\e2e\fine_tuned-graded --output-dir runs\e2e-combined
+```
+
+統合した採点結果は`runs\e2e-combined\scores.json`に保存されます。この章の費用計算では、このファイルを使います。
+
 ### 使用量と価格の対応を確認する
 
 第7章で記録した、問い合わせへの対応全体の使用量を費用へ換算します。モデルが処理する文章量は、通常、**トークン**という単位で記録され、文字数とは異なります。入力・出力と、再利用された入力（キャッシュ）を分け、それぞれに対応する単価を使います。
@@ -27,7 +38,7 @@ python scripts\report.py --input examples\illustrative\cost-input.json --output 
 
 出力は`report.json`、`costs.csv`、`volume.csv/svg`、`cumulative.csv/svg`、`payback.csv/svg`、`input.json`、`decision.md`です。再実行には新しい出力先を選びます。[スキーマと架空図表](https://github.com/shitada/foundry-distillation-lab/blob/main/examples/illustrative/README.md)を参照し、実測時は`configs\examples\cost-actual-template.json`をコピーして別ファイルへ記入します。
 
-第7章で`combine`した、教師・学習前・学習後の3者分の評価②を使います。個別モデルの`scores.json`や、第6章の評価①は渡しません。最初のコマンドは費用入力JSONの作成、次が図表生成です。
+この章の最初に統合した`runs\e2e-combined\scores.json`を使います。最初のコマンドで費用入力JSONを作り、次のコマンドで図表を生成します。
 
 ```powershell
 python scripts\report.py --prepare-evaluation --input runs\e2e-combined\scores.json --config configs\examples\cost-evaluation.json --output runs\evaluation-cost-input.json
