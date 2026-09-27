@@ -121,6 +121,24 @@ call の重複、start/finish の欠落、モデル提案と実行の不一致�
 
 **防げた不正要求と実行された不正操作を別に数えます。** `blocked_invalid_calls` と `executed_unauthorized_actions` は異なる配列です。実行前の不明ツール・schema 違反は blocked。実行中の例外は「副作用がなかった」と推測せず unknown として停止します。ツール自身が構造化エラーと `external_side_effect:false` を返した場合だけ blocked と記録します。正常な模擬送信でも `external_side_effect:false` が必要です。防げた不正要求も品質上の問題であり、無条件合格にはしません。
 
+### モデルの失敗は一件の不合格として評価を続ける
+
+ローカル実行では、不正なツール名・引数・呼び出しIDを検出した場合、その要求を実行せず、そのケースを品質不合格として次のケースへ進みます。呼び出し回数の上限到達、空の最終回答、結果に`external_side_effect:false`が明記されたツールの拒否も同じ扱いです。次のケースは新しい業務状態から開始します。
+
+記録の`status`には`blocked`、`limit_exceeded`、`error`などの終了状態を残します。`termination`と末尾の`attempt_finish`に終了理由を記録し、採点器が応答・停止した要求・実行結果と照合します。経緯を確認できたケースは`quality_failure`、自動判定は`failure`になります。正常完了に見せかけるための状態の書き換えは行いません。
+
+| `termination.reason` | 確認する根拠 |
+|---|---|
+| `invalid_tool_call` | 実際のモデル応答に不正な呼び出しがあり、同じ応答内の全要求が実行前に止められている |
+| `tool_call_limit` | 次の要求群を実行すると設定したツール呼び出し上限を超える |
+| `model_call_limit` | 設定した回数までモデルを呼び、ツール結果を取得したが最終回答に到達していない |
+| `tool_rejected` | ツールが副作用なしの拒否結果を返し、残りの要求が実行されていない |
+| `empty_answer` | モデルから取得した最後の応答が空である |
+
+実行前に止めた要求は、モデル応答の位置と元の要求を`tool_blocked`へ保存します。採点結果の`unexecuted_calls`で、その要求と、同じ応答内で連動して実行を止めた要求を確認できます。不正な要求自体は`blocked_invalid_calls`にも残します。通常の呼び出しでは、引き続き実行結果をモデルへ返して処理を進めます。
+
+通信・認証の失敗、分類できないツール例外、欠けた記録は`technical_failure`のままです。そのモデルの残りのケースを停止し、未試行の件数を分母に残します。単に例外の型が`ValueError`というだけでは、安全な業務上の拒否と判定しません。
+
 ## 判定と人間レビュー
 
 ### 標準の自動採点
@@ -209,6 +227,7 @@ python scripts\evaluate.py compare --before runs\base-reviewed --after runs\fine
 
 ## 使用量・時間・分母
 
+- 応答の成否と使用量の取得は別に扱います。途中で切れた応答や形式不正でも、取得できた使用量は評価①のrecord、評価②の`model_finish.usage`と集計へ保存します。失敗の判定・停止条件は変えません。使用量自体が未取得または不正なら、該当項目はnullのままです。
 - usage の正規形は `input_tokens`, `output_tokens`, `cached_input_tokens`。cache は input の内数。
 - 未取得・不正な数値・不完全な集計は null。未知を 0 にしません。
 - 評価②は各 `model_finish.usage` を集計します。record の自己申告合計だけは信用しません。
@@ -231,7 +250,7 @@ record = run_case(case, "teacher", invoke_model, RetailSession,
 
 `invoke_model(payload)` は `{"message": OpenAI形式message, "usage": 正規形usage}` を返します。payload は `attempt_id`, `model_label`, `messages`, `tools` のみ。期待値・oracle・レビューはモデルへ渡しません。注入先はテスト用 callable にでき、クラウド資格情報を必要としません。インジェクトした callable のネットワーク安全性はその実装の責任です。
 
-`RetailSession()` は呼び出すたびに新規作成し、各ケース・各モデル間で状態を共有しません。session には `call(name, arguments) -> dict`, `tools`, `system_prompt` が必要です。tool batch 全体を検証してから順に実行します。返答完了、上限、schema 違反、不明ツール、重複 call ID、モデル/ツールの不明な結果で停止し、自動再試行しません。顧客との反復対話・ユーザーシミュレーターはありません。
+`RetailSession()` は呼び出すたびに新規作成し、各ケース・各モデル間で状態を共有しません。session には `call(name, arguments) -> dict`, `tools`, `system_prompt` が必要です。tool batch 全体を検証してから順に実行します。不正な要求や呼び出し上限ではそのケースを不合格として終了し、次のケースへ進みます。モデル/ツールの不明な結果や記録の欠落では、そのモデルの残りを停止します。同じ問題の自動再試行や、正解を与えての修正は行いません。
 
 ## Hosted Agent 証跡を評価②に接続する（完全オフライン）
 
@@ -297,6 +316,8 @@ capture に `review` がある場合、その内容は `source_review` にその
 
 ## 評価②から第8章の費用入力へ接続する
 
+第8章の標準手順では、`report.py --estimate`が結果の統合、公開単価による概算、費用グラフの生成をまとめて行います。件数と表示期間は自動選択し、追加費用とホスティング時間だけ任意で指定できます。[自動概算の仕様](cost-estimation.md)を参照してください。以下は、保存済みの料金設定を使って各処理を個別に実行する方法です。
+
 採点 report の集計を手で転記する代わりに、reporting の準備 adapter を使います:
 
 ```powershell
@@ -337,10 +358,13 @@ python scripts\evaluate.py run --mode next-action --input runs\next-action-input
 
 - `--mode`は`next-action`または`e2e`。対象は`--model`で選びます。モデル一覧・records・出所ラベルの手編集は不要です。
 - 共通設定は`base_url`、`targets`、`max_completion_tokens: 1024`、`timeout_seconds: 60`、`max_model_calls: 12`、`max_tool_calls: 24`です。出力上限は要求ごと、呼び出し上限はケースごとです。
+- モデル別の生成条件は、省略可能な`model_settings`に指定します。キーは`targets`にあるモデルラベルで、指定できる項目は`reasoning_effort`、`max_completion_tokens`、`timeout_seconds`です。省略した項目は共通設定を使い、`reasoning_effort`は指定したモデルにだけ送信します。
+- 教師`gpt-5.5`の標準値は、`model_settings.teacher`に`reasoning_effort: "high"`、`max_completion_tokens: 16384`、`timeout_seconds: 300`です。生徒の学習前後は共通設定の1,024トークン・60秒、採点用モデルは別の`grading-config.json`を使います。推論モデルの出力上限には推論トークンも含まれます。
+- 実際に適用した生成条件は実行記録の`generation_settings`へ保存します。比較・統合ではモデル別設定を含む同じ設定ファイルを使用し、教師と生徒の生成条件の違いを記録したうえで比較します。
 - 評価①は各ケース1要求で、ツールを実行しません。評価②は実際のRetailSessionに一致するtoolsとsystem promptを使い、模擬業務ツールを実行します。
 - 最初の通常ケースで接続も確認します。別の接続試験へ切り出さず、初回の時間・使用量を本評価に含めます。
 - runには`input.json`、送信前の`execution-start.json`、`evidence.json`、`scores.json`、結果保存後の`execution.json`を自動保存します。入力はそのまま固定し、選択モデルの観測を別の証跡へ保存します。内部識別値と送信記録もプログラムが管理します。
-- エラー・上限・結果不明では停止し、残りを未試行として分母に残します。SDKの自動再試行を無効にし、不明な要求を別runで送り直しません。
+- モデルの不正な要求や呼び出し上限は、一件の不合格として記録し、次のケースへ進みます。通信などの結果不明や記録の不整合では停止し、残りを未試行として分母に残します。SDKの自動再試行は無効です。
 - 認証は`DefaultAzureCredential`、推論はChat Completionsの`/openai/v1/`です。入力に機微情報がある場合は出力も公開しません。
 
 費用は対象モデルの単価、入力量、出力上限から見積もり、実行後のusage・請求とは分けます。使用量が欠けた場合は0にしません。学習費や配置の保持費は別に確認します。
@@ -359,13 +383,15 @@ python scripts\evaluate.py run --mode next-action --input runs\next-action-input
 
 問い合わせは第3章の業務ルールを基にした教材の比較用データです。準備処理は第5章のデータと照合し、注文が重ならないように選びます。期待する行動・処理結果は評価対象モデルの応答から作りません。これは改善点を調べるための追加の評価であり、未使用の最終評価データによる検証とは区別します。
 
-`study`は`teacher`、`base`、`fine_tuned`の同じ入力・生成条件を確認してから、既存の`run`・`grade`・`compare`の処理を順に実行します。採点基準、ルール検査、ケースごとの状態初期化、モデル・ツール呼び出し上限は共通です。
+`study`は`teacher`、`base`、`fine_tuned`の共通入力・設定とモデル別の生成条件を確認してから、既存の`run`・`grade`・`compare`の処理を順に実行します。採点基準、ルール検査、ケースごとの状態初期化、モデル・ツール呼び出し上限は共通です。
 
 出力先が既存なら、`runs\e2e-002`のように新しい保存先を割り当てます。利用者が再度コマンドを実行することは新しい実験として記録します。一回の実験内では、応答が不明な要求を自動で再送しません。
 
 各結果フォルダーの`comparison.csv`に三つのモデルの比較、`summary.json`に集計を保存します。`teacher`・`base`・`fine_tuned`に取得結果、対応する`*-graded`に採点結果が残ります。`base-vs-fine-tuned`、`teacher-vs-fine-tuned`、`teacher-vs-base`には従来と同じ詳細比較表を作ります。
 
-三つの採点結果の統合は、[第8章の最初の手順](../chapters/08-cost.md#三つのモデルの評価結果を統合する)で行います。採点用モデルの使用量を評価対象モデルの使用量へ加えることや、自動判定を人による確認済み成功として扱うことはありません。
+三つのモデルを並べた表の`teacher_reason`・`base_reason`・`fine_tuned_reason`には、ルール検査や実行失敗の具体的な理由を日本語の説明と元の原因コードで表示します。検査上の失敗がなければ、採点用モデルの判定理由を表示します。表示のために追加のモデル呼び出しは行いません。未定義の原因コードも省略せず表示します。
+
+三つの採点結果の統合は、[第8章のグラフ生成コマンド](../chapters/08-cost.md#グラフを自動生成する)が行います。採点用モデルの使用量を評価対象モデルの使用量へ加えることや、自動判定を人による確認済み成功として扱うことはありません。
 
 ## 検証範囲と限界
 

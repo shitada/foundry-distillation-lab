@@ -4,8 +4,9 @@ from copy import deepcopy
 import hashlib
 import time
 
-from .schema import ContractError, call_errors, canonical, parse_call, tool_schemas
+from .schema import ContractError, canonical, tool_schemas
 from .scoring import aggregate_usage, derive_final_state, normalized_usage
+from .termination import block_calls, inspect_calls, safe_rejection, stopped as stop_case
 
 
 class RecordedModel:
@@ -76,9 +77,9 @@ def run_next_action(case, model, invoke, tools):
                            "model_label": model, "messages": deepcopy(case["messages"]),
                            "tools": deepcopy(tools)})
         record.update(_response_identity(response))
+        record["usage"] = normalized_usage(response.get("usage") if isinstance(response, dict) else None)
         message, _ = _message(response)
-        record.update(status="completed", message=deepcopy(message),
-                      usage=normalized_usage(response.get("usage")))
+        record.update(status="completed", message=deepcopy(message))
     except Exception as exc:
         record["error_type"] = type(exc).__name__
     record["latency_seconds"] = time.monotonic() - started
@@ -109,7 +110,8 @@ def run_case(case, model, invoke, session_factory, *, max_model_calls=12, max_to
                 {"role": "user", "content": case["user_input"]}]
     events, usages, successful, seen_ids = [], [], [], set()
     record = {"case_id": case["case_id"], "model": model, "origin": "local_tool_loop",
-              "status": "unknown", "answer": "", "events": events}
+              "status": "unknown", "answer": "", "events": events,
+              "limits": {"max_model_calls": max_model_calls, "max_tool_calls": max_tool_calls}}
     started, tool_count = time.monotonic(), 0
     try:
         for index in range(1, max_model_calls + 1):
@@ -123,9 +125,11 @@ def run_case(case, model, invoke, session_factory, *, max_model_calls=12, max_to
                 record.update(_response_identity(response))
                 message, calls = _message(response)
             except Exception as exc:
-                usages.append(None)
+                usage = normalized_usage(response.get("usage") if isinstance(response, dict) else None)
+                usages.append(usage)
                 events.append({"event": "model_finish", "call_id": model_id, "status": "unknown",
-                               "error_type": type(exc).__name__, **_response_identity(response)})
+                               "error_type": type(exc).__name__, "usage": usage,
+                               **_response_identity(response)})
                 record["error_type"] = type(exc).__name__
                 break
             usages.append(response.get("usage"))
@@ -134,42 +138,30 @@ def run_case(case, model, invoke, session_factory, *, max_model_calls=12, max_to
                            **_response_identity(response)})
             if not calls:
                 record["answer"] = message.get("content") or ""
-                record["status"] = "completed" if record["answer"].strip() else "error"
+                if record["answer"].strip():
+                    record["status"] = "completed"
+                else:
+                    stop_case(record, "empty_answer", "error")
                 break
             # Validate the entire batch before executing any member.
-            parsed_calls, invalid = [], []
-            batch_ids = set()
-            for position, call in enumerate(calls):
-                call_id = call.get("id") if isinstance(call, dict) else None
-                if not isinstance(call_id, str) or not call_id or call_id in seen_ids | batch_ids:
-                    invalid.append({"event": "tool_blocked", "call_id": f"invalid-{index}-{position}",
-                                    "reason": "missing_or_reused_call_id"})
-                    continue
-                batch_ids.add(call_id)
-                try:
-                    parsed = parse_call(call)
-                    errors = call_errors(parsed, schemas)
-                    if errors:
-                        raise ValueError(";".join(errors))
-                    parsed_calls.append((call_id, parsed))
-                except (ValueError, TypeError):
-                    invalid.append({"event": "tool_blocked", "call_id": call_id,
-                                    "reason": "invalid_tool_name_or_arguments"})
+            parsed_calls, invalid = inspect_calls(calls, schemas, seen_ids)
             if invalid:
-                events.extend(invalid)
-                record["status"] = "blocked"
+                events.extend(block_calls(calls, model_id, errors=invalid,
+                                          reason="batch_contains_invalid_call"))
+                stop_case(record, "invalid_tool_call", "blocked")
                 break
             if tool_count + len(parsed_calls) > max_tool_calls:
-                record["status"] = "limit_exceeded"
+                events.extend(block_calls(calls, model_id, reason="tool_call_limit"))
+                stop_case(record, "tool_call_limit", "limit_exceeded")
                 break
-            seen_ids.update(batch_ids)
+            seen_ids.update(call_id for call_id, _ in parsed_calls)
             messages.append({"role": "assistant", "content": message.get("content"),
                              "tool_calls": [
                                  {"id": call_id, "type": "function",
                                   "function": {"name": parsed["name"], "arguments": canonical(parsed["arguments"])}}
                                  for call_id, parsed in parsed_calls]})
             stopped = False
-            for call_id, parsed in parsed_calls:
+            for position, (call_id, parsed) in enumerate(parsed_calls):
                 tool_count += 1
                 events.append({"event": "tool_start", "call_id": call_id, **deepcopy(parsed)})
                 try:
@@ -186,10 +178,15 @@ def run_case(case, model, invoke, session_factory, *, max_model_calls=12, max_to
                 if result.get("error") or result_status in ("error", "failed", "blocked", "rejected"):
                     # A structured rejection is only "blocked" if the tool explicitly
                     # attests no external side effect. Otherwise outcome is unknown.
-                    status = "blocked" if result.get("external_side_effect") is False else "unknown"
+                    status = "blocked" if safe_rejection(result) else "unknown"
                     events.append({"event": "tool_finish", "call_id": call_id, "status": status,
                                    "result": deepcopy(result)})
                     record["status"], stopped = status, True
+                    if status == "blocked":
+                        events.extend(block_calls(calls[position + 1:], model_id,
+                                                  reason="batch_stopped_after_tool_rejection",
+                                                  offset=position + 1))
+                        stop_case(record, "tool_rejected", "blocked")
                     break
                 events.append({"event": "tool_finish", "call_id": call_id, "status": "completed",
                                "result": deepcopy(result)})
@@ -198,9 +195,12 @@ def run_case(case, model, invoke, session_factory, *, max_model_calls=12, max_to
             if stopped:
                 break
         else:
-            record["status"] = "limit_exceeded"
+            stop_case(record, "model_call_limit", "limit_exceeded")
     finally:
-        events.append({"event": "attempt_finish", "status": record["status"]})
+        ending = {"event": "attempt_finish", "status": record["status"]}
+        if "termination" in record:
+            ending["termination"] = deepcopy(record["termination"])
+        events.append(ending)
         record["latency_seconds"] = time.monotonic() - started
         record["usage"] = aggregate_usage(usages)
         record["final_state"] = derive_final_state(successful)
@@ -212,16 +212,22 @@ def run_case(case, model, invoke, session_factory, *, max_model_calls=12, max_to
 class OpenAITransport:
     """Optional direct model transport. Construction/import makes no cloud call."""
 
-    def __init__(self, *, base_url, max_completion_tokens=2048, timeout_seconds=60):
+    def __init__(self, *, base_url, max_completion_tokens=2048, timeout_seconds=60,
+                 reasoning_effort=None):
         if not isinstance(base_url, str) or not base_url.startswith("https://") or not base_url.endswith("/openai/v1/"):
             raise ValueError("https_openai_v1_endpoint_required")
         if type(max_completion_tokens) is not int or max_completion_tokens <= 0:
             raise ValueError("positive_max_completion_tokens_required")
         if type(timeout_seconds) not in (int, float) or not 0 < timeout_seconds <= 600:
             raise ValueError("timeout_must_be_between_zero_and_600_seconds")
+        if reasoning_effort is not None and (
+                not isinstance(reasoning_effort, str)
+                or reasoning_effort not in {"none", "minimal", "low", "medium", "high", "xhigh"}):
+            raise ValueError("invalid_reasoning_effort")
         self.base_url = base_url
         self.max_completion_tokens = max_completion_tokens
         self.timeout_seconds = timeout_seconds
+        self.reasoning_effort = reasoning_effort
         self._client = None
 
     def __call__(self, payload):
@@ -236,6 +242,8 @@ class OpenAITransport:
         options = ({"response_format": payload["response_format"]}
                    if "response_format" in payload else
                    {"tools": payload["tools"], "parallel_tool_calls": False})
+        if self.reasoning_effort is not None:
+            options["reasoning_effort"] = self.reasoning_effort
         response = self._client.chat.completions.create(
             model=payload["target"], messages=payload["messages"],
             max_completion_tokens=self.max_completion_tokens, store=False, **options)

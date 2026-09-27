@@ -19,11 +19,20 @@ REVIEW_FIELDS = ("case_id", "model", "category", "evidence_sha256", "messages", 
 USER_REVIEW_FIELDS = {"decision", "reviewer", "notes"}
 CONFIG_FIELDS = {"base_url", "targets", "max_completion_tokens", "timeout_seconds",
                  "max_model_calls", "max_tool_calls"}
+GENERATION_FIELDS = {"max_completion_tokens", "timeout_seconds", "reasoning_effort"}
 LIVE_EVIDENCE_KIND = "live_local_direct_model"
 
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def effective_model_settings(config, model):
+    """Resolve a model's generation options without changing the shared config."""
+    settings = {key: config[key] for key in ("max_completion_tokens", "timeout_seconds")}
+    overrides = config.get("model_settings", {}).get(model, {})
+    settings.update({key: overrides[key] for key in GENERATION_FIELDS if key in overrides})
+    return settings
 
 
 def _messages(messages, tools):
@@ -114,7 +123,8 @@ def _validate(bundle, config, mode, model):
         raise ContractError("run_requires_unexecuted_input_and_separate_config")
     if model not in bundle.get("models", list(DEFAULT_MODELS)):
         raise ContractError("model_not_declared_in_input")
-    if not isinstance(config, dict) or set(config) != CONFIG_FIELDS:
+    if (not isinstance(config, dict) or not CONFIG_FIELDS <= set(config)
+            or set(config) - CONFIG_FIELDS - {"model_settings"}):
         raise ContractError("evaluation_config_requires_exact_fields")
     targets = config["targets"]
     if (not isinstance(targets, dict) or model not in targets
@@ -135,6 +145,19 @@ def _validate(bundle, config, mode, model):
     # Construction is lazy and also validates token/timeout/endpoint settings.
     OpenAITransport(base_url=url, max_completion_tokens=config["max_completion_tokens"],
                     timeout_seconds=config["timeout_seconds"])
+    overrides = config.get("model_settings", {})
+    if not isinstance(overrides, dict):
+        raise ContractError("model_settings_must_be_object")
+    for label, settings in overrides.items():
+        if label not in targets:
+            raise ContractError("model_settings_requires_declared_target")
+        if (not isinstance(settings, dict) or not settings
+                or set(settings) - GENERATION_FIELDS):
+            raise ContractError("model_settings_requires_supported_overrides")
+        if "reasoning_effort" in settings and not isinstance(settings["reasoning_effort"], str):
+            raise ContractError("invalid_reasoning_effort")
+    for label in targets:
+        OpenAITransport(base_url=url, **effective_model_settings(config, label))
     for case in bundle["cases"]:
         tools = case.get("tools", bundle.get("tools"))
         if mode == "next-action":
@@ -216,11 +239,11 @@ def run_evaluation(input_path, config_path, mode, model, run_dir, *, invoke=None
         "schema": "retail-evaluation-execution-v1", "mode": mode, "model": model,
         "target": config["targets"][model], "config": deepcopy(config), "started_at": started,
         "source_input_sha256": hashlib.sha256(raw).hexdigest(),
+        "generation_settings": effective_model_settings(config, model),
     }
     write_json(directory / "execution-start.json", execution)
     transport = invoke if invoke is not None else OpenAITransport(
-        base_url=config["base_url"], max_completion_tokens=config["max_completion_tokens"],
-        timeout_seconds=config["timeout_seconds"])
+        base_url=config["base_url"], **execution["generation_settings"])
     recorded = RecordedModel(transport, journal=Journal(directory), target=execution["target"])
     evidence = deepcopy(bundle)
     evidence.update(models=[model], records=[], evidence_kind=LIVE_EVIDENCE_KIND)
@@ -248,6 +271,7 @@ def run_evaluation(input_path, config_path, mode, model, run_dir, *, invoke=None
         write_json(directory / f"record-{len(evidence['records']):06d}.json", record)
         scorer = score_next_action if mode == "next-action" else score_e2e
         score = scorer(case, record, tools, model)
+        # Witnessed model failures are scored as quality failures, so other cases continue.
         if score["technical_failures"]:
             break
     scores = evaluate(evidence, mode)
@@ -267,12 +291,21 @@ def _load_run(directory):
             raise ContractError(f"changed_{name}_snapshot")
     bundle, original = read_json(directory / "evidence.json"), read_json(directory / "input.json")
     _validate(original, execution["config"], execution["mode"], execution["model"])
+    if ("generation_settings" in execution
+            and canonical(execution["generation_settings"]) != canonical(
+                effective_model_settings(execution["config"], execution["model"]))):
+        raise ContractError("generation_settings_mismatch")
     expected = deepcopy(original)
     expected.update(models=[execution["model"]], records=bundle.get("records"),
                     evidence_kind=LIVE_EVIDENCE_KIND)
     if canonical(expected) != canonical(bundle) or execution["target"] != execution["config"]["targets"][execution["model"]]:
         raise ContractError("evidence_input_or_target_mismatch")
     report = evaluate(bundle, execution["mode"])
+    for record in bundle["records"]:
+        if record.get("origin") == "local_tool_loop" and "limits" in record:
+            limits = {key: execution["config"][key] for key in ("max_model_calls", "max_tool_calls")}
+            if canonical(record["limits"]) != canonical(limits):
+                raise ContractError("case_call_limits_differ_from_configuration")
     grading = execution.get("grading")
     if grading is not None:
         from .grading import OVERHEAD_FIELDS, _digest, grading_input, protocol

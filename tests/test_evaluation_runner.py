@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 import uuid
 
-from foundry_distillation_lab.evaluation import RecordedModel, OpenAITransport, run_case, run_next_action, score_e2e
+from foundry_distillation_lab.evaluation import RecordedModel, OpenAITransport, run_case, run_next_action, score_e2e, evaluate
 from foundry_distillation_lab.evaluation.schema import ContractError, loads
 
 
@@ -172,6 +172,58 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(record["response_id"], "incomplete")
         self.assertEqual(record["events"][1]["response_model"], "resolved-version")
         self.assertIsNone(record["usage"]["input_tokens"])
+
+    def test_failed_response_keeps_reported_usage_without_changing_failure(self):
+        usages = (
+            {"input_tokens": 20, "output_tokens": 8, "cached_input_tokens": 3},
+            {"input_tokens": 20, "output_tokens": None, "cached_input_tokens": None},
+            {"input_tokens": 20, "output_tokens": -1, "cached_input_tokens": 25},
+        )
+        for raw_usage in usages:
+            for failure in (
+                    {"response_error": "incomplete_or_ambiguous_model_response"},
+                    {"message": {"content": 123}},
+                    {"message": None},
+                    {"message": {"content": "partial", "tool_calls": "invalid"}}):
+                with self.subTest(usage=raw_usage, failure=failure):
+                    response = {**failure, "usage": raw_usage, "response_id": "failed-response"}
+                    expected = {"input_tokens": 20, "output_tokens": 8 if raw_usage["output_tokens"] == 8 else None,
+                                "cached_input_tokens": 3 if raw_usage["cached_input_tokens"] == 3 else None}
+                    invoke = Mock(return_value=response)
+                    record = run_case(self.case, "base", invoke, FakeSession)
+                    self.assertEqual(record["status"], "unknown")
+                    self.assertEqual(record["usage"], expected)
+                    self.assertEqual(record["events"][1]["usage"], expected)
+                    score = score_e2e(self.case, record, fixture()["tools"], "base")
+                    self.assertEqual(score["status"], "technical_failure")
+                    self.assertEqual(score["usage"], expected)
+                    self.assertEqual(invoke.call_count, 1)
+                    next_case = {"case_id": "next", "messages": [{"role": "user", "content": "確認してください。"}],
+                                 "expected": {"kind": "text", "calls": []}}
+                    record = run_next_action(next_case, "base", Mock(return_value=response), fixture()["tools"])
+                    report = evaluate({"models": ["base"], "cases": [next_case],
+                                       "tools": fixture()["tools"], "records": [record]}, "next-action")
+                    self.assertEqual(record["status"], "unknown")
+                    self.assertEqual(report["rows"][0]["usage"], expected)
+                    self.assertEqual(report["overall"]["usage_total"], expected)
+                    self.assertEqual(report["rows"][0]["automatic_decision"], "unknown")
+
+    def test_partial_second_response_usage_is_aggregated_from_events(self):
+        first = model_responses()[0]
+        first["usage"] = {"input_tokens": 10, "output_tokens": 4, "cached_input_tokens": 2}
+        second = {"response_error": "incomplete", "usage": {
+            "input_tokens": 20, "output_tokens": 8, "cached_input_tokens": 3}}
+        for usage in (second["usage"], None):
+            with self.subTest(usage=usage):
+                second["usage"] = usage
+                record = run_case(self.case, "base", Mock(side_effect=[first, second]), FakeSession)
+                expected = ({"input_tokens": 30, "output_tokens": 12, "cached_input_tokens": 5}
+                            if usage else {"input_tokens": None, "output_tokens": None, "cached_input_tokens": None})
+                self.assertEqual(record["usage"], expected)
+                report = evaluate({"models": ["base"], "cases": [self.case],
+                                   "tools": fixture()["tools"], "records": [record]}, "e2e")
+                self.assertEqual(report["overall"]["usage_total"], expected)
+                self.assertEqual(report["rows"][0]["status"], "technical_failure")
 
     def test_actual_retail_session_with_injected_model(self):
         from foundry_distillation_lab.retail import RetailSession
@@ -352,6 +404,28 @@ class RecordingAndCliTests(unittest.TestCase):
         self.assertEqual(response["response_model"], "model-version")
         self.assertEqual(response["response_id"], "truncated-response")
         self.assertEqual(response["response_error"], "incomplete_or_ambiguous_model_response")
+
+    def test_truncated_provider_usage_reaches_runner_score_and_journal(self):
+        from foundry_distillation_lab.safety import Journal
+        transport = OpenAITransport(base_url="https://example.invalid/openai/v1/")
+        transport._client = Mock()
+        transport._client.chat.completions.create.return_value.model_dump.return_value = {
+            "model": "model-version", "id": "truncated-response",
+            "choices": [{"finish_reason": "length", "message": {"content": "partial"}}],
+            "usage": {"prompt_tokens": 20, "completion_tokens": 8,
+                      "prompt_tokens_details": {"cached_tokens": 3}},
+        }
+        recorded = RecordedModel(transport, journal=Journal(self.directory), target="model")
+        case = fixture()["cases"][0]
+        record = run_case(case, "base", recorded, FakeSession)
+        score = score_e2e(case, record, fixture()["tools"], "base")
+        expected = {"input_tokens": 20, "output_tokens": 8, "cached_input_tokens": 3}
+        self.assertEqual(score["usage"], expected)
+        self.assertEqual(score["status"], "technical_failure")
+        self.assertEqual(transport._client.chat.completions.create.call_count, 1)
+        result = next((self.directory / "attempts").glob("*.result.json"))
+        saved = json.loads(result.read_text(encoding="utf-8"))["result"]["response"]
+        self.assertEqual(saved["usage"], expected)
 
     def test_dataset_cli_to_evaluation_bundle_without_fabricated_predictions(self):
         prepared = self.directory / "data"

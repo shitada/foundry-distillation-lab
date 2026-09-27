@@ -20,7 +20,7 @@
 
 ### モデルとFoundryの準備
 
-筆者の過去の実験では、教師に`gpt-5.4-pro`、生徒に`gpt-4.1-nano`の`2025-04-14`版を使いました。これは選択の参考であり、どの地域・時点でも利用できる推奨構成ではありません。[第4章のモデル選択](../chapters/04-environment.md#教師モデルと生徒モデルを選ぶ)と[対応モデル・地域](https://learn.microsoft.com/azure/foundry/openai/concepts/models#fine-tuning-models)を参照し、教師ありファインチューニング、ツール呼び出し、Chat Completionsへの対応と料金を確認します。
+本教材の標準構成は、教師が`gpt-5.5`、生徒が`gpt-4.1-nano`の`2025-04-14`版です。[第4章のモデル選択](../chapters/04-environment.md#教師モデルと生徒モデルを選ぶ)と[対応モデル・地域](https://learn.microsoft.com/azure/foundry/openai/concepts/models#fine-tuning-models)を参照し、生徒モデルの教師ありファインチューニング、ツール呼び出し、Chat Completionsへの対応と料金を確認します。
 
 1. [Foundry](https://ai.azure.com/)で対象プロジェクトを選びます。新規作成では **Create new project → Advanced options** で課金先・リソースグループ・地域を確認します。
 2. **Discover → Models → 対象モデル → Deploy → Custom settings** で、学習対象と同じ種類・版のモデルを配置します。配置名の例は`student-base`です。

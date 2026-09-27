@@ -7,6 +7,7 @@ import math
 import statistics
 
 from .schema import ContractError, call_errors, canonical, equal, parse_call, tool_schemas, validate
+from .termination import failure_evidence
 
 
 DEFAULT_MODELS = ("teacher", "base", "fine_tuned")
@@ -85,13 +86,13 @@ def _base(case, record, model):
     }
 
 
-def _record_errors(case, record, model, score):
+def _record_errors(case, record, model, score, *, assessed_failure=False):
     if not isinstance(record, dict):
         return ["missing_record"] if record is None else ["record_not_object"]
     errors = []
     if record.get("case_id") != case["case_id"] or record.get("model") != model:
         errors.append("record_identity_mismatch")
-    if record.get("status") != "completed":
+    if record.get("status") != "completed" and not assessed_failure:
         errors.append("attempt_not_completed")
     latency = record.get("latency_seconds")
     if type(latency) in (int, float) and math.isfinite(latency) and latency >= 0:
@@ -266,9 +267,15 @@ def score_e2e(case, record, tools, model):
     score["tool_contract_sha256"] = hashlib.sha256(canonical(tools).encode("utf-8")).hexdigest()
     score["usage"] = normalized_usage(None)
     technical, quality = score["technical_failures"], score["quality_failures"]
-    technical.extend(_record_errors(case, record, model, score))
+    termination = failure_evidence(record, schemas)
+    technical.extend(_record_errors(case, record, model, score,
+                                    assessed_failure=termination is not None))
     if not isinstance(record, dict):
         return _finish(score, record)
+    if record.get("termination") is not None and termination is None:
+        technical.append("unsupported_case_termination")
+    if termination is not None:
+        quality.append(termination["reason"])
     events = record.get("events")
     if not isinstance(events, list) or not events:
         technical.append("missing_event_evidence")
@@ -316,7 +323,9 @@ def score_e2e(case, record, tools, model):
                 technical.append("missing_model_message")
                 continue
             terminal_message = message
-            for proposal in message.get("tool_calls", []):
+            for position, proposal in enumerate(message.get("tool_calls", [])):
+                if termination is not None and (call_id, position) in termination["skipped"]:
+                    continue
                 if not isinstance(proposal, dict) or not isinstance(proposal.get("id"), str):
                     technical.append("malformed_model_tool_proposal")
                     continue
@@ -343,6 +352,12 @@ def score_e2e(case, record, tools, model):
             except (ValueError, TypeError):
                 technical.append("malformed_tool_start")
         elif kind == "tool_blocked":
+            if termination is not None and event in termination["blocks"]:
+                score.setdefault("unexecuted_calls", []).append(deepcopy(event))
+                if event["reason"] == "invalid_tool_call":
+                    score["blocked_invalid_calls"].append(deepcopy(event))
+                    quality.extend(event["details"])
+                continue
             if call_id in starts:
                 technical.append("blocked_call_already_started")
             score["blocked_invalid_calls"].append(event)
@@ -390,7 +405,7 @@ def score_e2e(case, record, tools, model):
                     quality.append("simulation_boundary_unverified_or_violated")
         elif kind == "attempt_finish":
             completion_count += 1
-            if event.get("status") != "completed":
+            if event.get("status") != "completed" and termination is None:
                 technical.append("attempt_finish_not_completed")
         else:
             technical.append("unknown_event_type")
@@ -405,7 +420,8 @@ def score_e2e(case, record, tools, model):
         technical.append("missing_or_misplaced_attempt_finish")
     if set(proposals) != set(starts) | blocked_ids:
         technical.append("unaccounted_model_tool_proposals")
-    if (not isinstance(terminal_message, dict) or terminal_message.get("tool_calls")
+    if termination is None and (
+            not isinstance(terminal_message, dict) or terminal_message.get("tool_calls")
             or terminal_message.get("content") != record.get("answer")):
         technical.append("final_answer_not_supported_by_model")
     initial_names = [event.get("name") for event in starts.values()][:len(expected["initial_tools"])]

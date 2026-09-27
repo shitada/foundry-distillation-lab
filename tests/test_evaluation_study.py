@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import Mock, patch
 import uuid
 
-from foundry_distillation_lab.evaluation.study import MODELS, PAIRS, _allocate_directory, study
+from foundry_distillation_lab.evaluation.study import MODELS, PAIRS, _allocate_directory, _comparison_reason, study
 from foundry_distillation_lab.evaluation.workflow import _load_run, compare_runs
 from foundry_distillation_lab.io import read_json, sha256
 from foundry_distillation_lab.retail import RetailSession
@@ -168,6 +168,66 @@ class StudyTests(unittest.TestCase):
                 self.assertNotIn(secret, data)
             self.assertEqual(request["target"], "judge-target")
 
+    def test_rule_failure_reasons_in_final_csv_are_specific_and_keep_codes(self):
+        invoke = Mock(return_value={
+            "message": {"content": None, "tool_calls": [{
+                "id": "missing-argument", "type": "function",
+                "function": {"name": "get_order_details", "arguments": "{}"}}]},
+            "usage": {"input_tokens": 20, "output_tokens": 8, "cached_input_tokens": 0}})
+        judge = Mock(side_effect=AssertionError("Rule failures must not call the grader"))
+        summary = self.run_study(invoke=invoke, judge=judge)
+        self.assertTrue(summary["complete"])
+        self.assertEqual(invoke.call_count, 3)
+        judge.assert_not_called()
+        with (self.output / "comparison.csv").open(encoding="utf-8-sig", newline="") as stream:
+            row = next(csv.DictReader(stream))
+        for model in MODELS:
+            self.assertEqual(row[f"{model}_verdict"], "failure")
+            self.assertIn("必須項目がありません", row[f"{model}_reason"])
+            self.assertIn("$.order_id:required", row[f"{model}_reason"])
+            self.assertIn("必要なツール呼び出し", row[f"{model}_reason"])
+            self.assertNotIn("deterministic_quality_failure", row[f"{model}_reason"])
+            self.assertEqual(summary["per_model"][model]["automatic_decision_counts"]["failure"], 1)
+        self.assertEqual(summary["grading"]["judge_calls"], 0)
+
+    def test_display_reasons_preserve_judge_text_and_unrecognized_codes(self):
+        base = {"technical_failures": [], "quality_failures": [], "model_review": {"reason": "根拠と整合します。"}}
+        self.assertEqual(_comparison_reason(base), "根拠と整合します。")
+        for code, expected in (
+                ("unknown_tool", "存在しないツール"),
+                ("model_call_limit", "モデル呼び出し回数"),
+                ("tool_call_limit", "ツール呼び出し回数"),
+                ("$.order_id:expected_string", "値の型が不正"),
+                ("future_failure_code", "future_failure_code")):
+            score = {**base, "quality_failures": [code, code],
+                     "model_review": {"reason": "deterministic_quality_failure"}}
+            text = _comparison_reason(score)
+            self.assertIn(expected, text)
+            self.assertEqual(text.count(f"[{code}]"), 1)
+        missing = {**base, "technical_failures": ["missing_record"], "model_review": None}
+        self.assertIn("応答記録がありません", _comparison_reason(missing))
+
+    def test_failed_response_usage_reaches_comparison_and_summary(self):
+        invoke = Mock(return_value={
+            "response_error": "incomplete_or_ambiguous_model_response",
+            "usage": {"input_tokens": 20, "output_tokens": 8, "cached_input_tokens": 3}})
+        judge = Mock(side_effect=AssertionError("Failed response must not be graded"))
+        summary = self.run_study(invoke=invoke, judge=judge)
+        self.assertFalse(summary["complete"])
+        self.assertEqual(invoke.call_count, 3)
+        judge.assert_not_called()
+        with (self.output / "comparison.csv").open(encoding="utf-8-sig", newline="") as stream:
+            row = next(csv.DictReader(stream))
+        for model in MODELS:
+            self.assertEqual(row[f"{model}_verdict"], "unknown")
+            self.assertEqual(row[f"{model}_input_tokens"], "20")
+            self.assertEqual(row[f"{model}_output_tokens"], "8")
+            self.assertEqual(row[f"{model}_cached_input_tokens"], "3")
+            self.assertIn("モデルの応答を正常に取得できませんでした", row[f"{model}_reason"])
+            self.assertEqual(summary["per_model"][model]["usage_total"]["input_tokens"], 20)
+            self.assertEqual(summary["per_model"][model]["automatic_decision_counts"]["unknown"], 1)
+        self.assertEqual(summary["grading"]["judge_calls"], 0)
+
     def test_repeated_invocation_allocates_new_folder_without_touching_prior_evidence(self):
         first = self.run_study()
         original = {str(path.relative_to(self.output)): path.read_bytes()
@@ -289,7 +349,7 @@ class StudyTests(unittest.TestCase):
         self.config["max_model_calls"] = 1
         self.save()
         summary = self.run_study()
-        self.assertFalse(summary["complete"])
+        self.assertTrue(summary["complete"])
         self.assertEqual(len(self.requests), 3)
         self.assertEqual(len(self.judgments), 0)
         for model in MODELS:
@@ -297,6 +357,8 @@ class StudyTests(unittest.TestCase):
             self.assertEqual(record["status"], "limit_exceeded")
             self.assertEqual(record["model_calls"], 1)
             self.assertEqual(record["tool_calls"], 1)
+            self.assertEqual(summary["per_model"][model]["automatic_decision_counts"]["failure"], 1)
+            self.assertEqual(summary["per_model"][model]["status_counts"]["technical_failure"], 0)
 
     def test_unexpected_error_saves_failed_summary_and_propagates_with_actual_path(self):
         self.output.mkdir()

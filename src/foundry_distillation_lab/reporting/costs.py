@@ -194,6 +194,9 @@ def build_report(data):
                        "crossover_requests": None, "monthly_savings": None,
                        "incremental_initial": None, "payback_months": None}
                 for name in ("base", "fine_tuned")}
+    if "estimate" in data:
+        report["estimate"] = mapping(data["estimate"], "estimate")
+        report["decision_draft"]["reasons"].append("Public retail price estimate, not invoiced cost.")
     return report
 
 
@@ -259,11 +262,15 @@ def svg_chart(rows, xlabel, ylabel, title, evidence):
     return "\n".join(parts) + "\n"
 
 
-def write_report(data, output):
+def write_report(data, output, *, graph_plan=None):
     report = build_report(data)
     # Validate and render before reserving the output directory.
     charts = {}
-    for kind in ("volume", "cumulative", "payback"):
+    if graph_plan is not None:
+        from .graphs import graph_charts
+        report["graph_plan"] = graph_plan
+        charts = graph_charts(report)
+    for kind in (() if graph_plan is not None else ("volume", "cumulative", "payback")):
         rows = series_rows(report, kind)
         title = ("Monthly operating cost by volume" if kind == "volume"
                  else f'Cumulative cost at {report["monthly_requests"]:g} requests/month'
@@ -271,12 +278,12 @@ def write_report(data, output):
         charts[kind] = (rows, svg_chart(
             rows, "Requests / month" if kind == "volume" else "Months",
             f'{report["currency"]} / month' if kind == "volume" else report["currency"],
-            title, report["evidence_kind"].upper()
+            title, ("PUBLIC RETAIL ESTIMATE; NOT INVOICE" if "estimate" in report else report["evidence_kind"].upper())
             + (" / EVALUATION COHORT ONLY; NOT PRODUCTION" if "evaluation_bridge" in report else "")))
     # Serialization catches numeric overflow before any output is created.
     serialized = json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     if any(not math.isfinite(value) for rows, _ in charts.values() for row in rows
-           for value in row.values() if value is not None):
+           for value in row.values() if isinstance(value, (int, float))):
         raise ValueError("Derived cost exceeds finite numeric range")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)

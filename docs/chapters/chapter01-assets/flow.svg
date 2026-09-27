@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="580" height="650" viewBox="0 0 580 650" role="img" aria-labelledby="title desc">
 <title id="title">蒸留と評価の実践の流れ</title>
-<desc id="desc">業務定義、教師履歴、学習前評価、追加学習、学習後評価、業務全体評価、採用判断の7段階。</desc>
+<desc id="desc">業務定義、教師履歴、学習前評価、追加学習、学習後評価、業務全体評価、費用グラフ作成の7段階。</desc>
 <rect width="100%" height="100%" fill="#ffffff"/>
 <g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" fill="#172033">
 <defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/></marker></defs>
@@ -29,6 +29,6 @@
 <text x="290" y="524" font-size="16" text-anchor="middle">評価②：仕事の完了・違反・待ち時間・使用量</text>
 <line x1="290" x2="290" y1="542" y2="559" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
 <rect x="20" y="564" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
-<text x="290" y="592" font-size="19" text-anchor="middle" font-weight="bold">7. 品質・時間・総費用から判断する</text>
-<text x="290" y="616" font-size="16" text-anchor="middle">採用／条件付き採用／見送り／保留</text>
+<text x="290" y="592" font-size="19" text-anchor="middle" font-weight="bold">7. 今回の結果で費用グラフを作る</text>
+<text x="290" y="616" font-size="16" text-anchor="middle">月額の分岐点・初期費用の回収を品質と読む</text>
 </g></svg>

@@ -22,6 +22,64 @@ PAIRS = (
     ("teacher", "base", "teacher-vs-base"),
 )
 
+REASON_TEXT = {
+    "unknown_tool": "存在しないツールを指定しています",
+    "invalid_tool_call": "ツール名・引数・呼び出し識別子のいずれかが不正です",
+    "invalid_tool_arguments": "ツールの引数を正しい形式で読み取れません",
+    "missing_or_reused_call_id": "呼び出し識別子が欠けているか重複しています",
+    "missing_required_call_or_result": "必要なツール呼び出し、または実行結果が期待値と一致しません",
+    "missing_required_initial_order": "最初に必要なツールが指定された順序で実行されていません",
+    "initial_checks_not_completed_in_order": "最初の確認処理が順番どおりに完了していません",
+    "tool_call_limit": "ツール呼び出し回数の上限までに対応を完了できませんでした",
+    "model_call_limit": "モデル呼び出し回数の上限までに回答を完了できませんでした",
+    "tool_rejected": "ツールが要求を拒否しました",
+    "blocked_invalid_call": "不適切なツール要求の実行が停止されました",
+    "empty_answer": "モデルの最後の回答が空です",
+    "missing_final_answer": "最後の回答がありません",
+    "unexpected_final_state": "最後の処理結果が期待する状態と一致しません",
+    "executed_unauthorized_action": "許可されていない操作が実行されました",
+    "missing_record": "この問題の応答記録がありません",
+    "model_failed": "モデルの応答を正常に取得できませんでした",
+    "attempt_not_completed": "実行が正常に完了していません",
+    "attempt_finish_not_completed": "実行の終了記録が正常完了を示していません",
+    "final_answer_not_supported_by_model": "最後の回答をモデルの応答記録で確認できません",
+    "tool_error_or_unknown_outcome": "ツールでエラーが発生したか、実行結果が不明です",
+}
+ARGUMENT_REASON_TEXT = {
+    "required": "必須項目がありません",
+    "unknown_property": "仕様にない項目が指定されています",
+    "enum": "許可されていない値です",
+    "const": "指定された固定値と異なります",
+    "duplicate_items": "配列の値が重複しています",
+    "pattern": "指定された書式に一致しません",
+    "minItems": "配列の要素数が下限未満です",
+    "maxItems": "配列の要素数が上限を超えています",
+    "minLength": "文字数が下限未満です",
+    "maxLength": "文字数が上限を超えています",
+    "minimum": "数値が下限未満です",
+    "maximum": "数値が上限を超えています",
+}
+
+
+def _reason_text(code):
+    text = REASON_TEXT.get(code)
+    if text is None and code.startswith("$") and ":" in code:
+        path, kind = code.rsplit(":", 1)
+        detail = ARGUMENT_REASON_TEXT.get(kind)
+        if kind.startswith("expected_"):
+            detail = f"値の型が不正です（必要な型: {kind.removeprefix('expected_')}）"
+        if detail:
+            text = f"{path}: {detail}"
+    return f"{text or '記録・検査結果の詳細を確認してください'} [{code}]"
+
+
+def _comparison_reason(score):
+    reasons = list(dict.fromkeys(score["technical_failures"] + score["quality_failures"]))
+    if reasons:
+        return "；".join(_reason_text(code) for code in reasons)
+    review = score["model_review"]
+    return review["reason"] if review else "内容の採点がまだありません"
+
 
 def _allocate_directory(output_dir):
     """Exclusive mkdir arbitrates concurrent invocations without reusing evidence."""
@@ -54,12 +112,10 @@ def _case_table(runs):
         for model in MODELS:
             scores, records = indexed[model]
             score = scores[case["case_id"]]
-            review = score["model_review"]
-            reasons = score["technical_failures"] + score["quality_failures"]
             record = records.get(case["case_id"])
             values = {
                 "verdict": score["automatic_decision"],
-                "reason": review["reason"] if review else canonical(reasons),
+                "reason": _comparison_reason(score),
                 "status": score["status"], "assessment_source": score["assessment_source"],
                 "response": canonical(_response(record)),
                 "latency_seconds": canonical(score["latency_seconds"]),

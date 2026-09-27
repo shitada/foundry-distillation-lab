@@ -37,6 +37,8 @@ python scripts\report.py --input examples\illustrative\cost-input.json --output 
 
 ## 入力スキーマ v1（集計済みJSON）
 
+第8章の標準手順では、`report.py --estimate`がグラフに使う件数・期間と下記の集計済み入力を自動生成します。設定ファイルは不要で、追加費用とホスティング時間を変更したい場合だけ`configs\examples\cost-plan.json`の形式で指定します。公開料金の取得と記録の対応付けは[自動概算の仕様](../../docs/reference/cost-estimation.md)を参照してください。以下は、生成されたファイルや個別のオフライン計算に使う詳細仕様です。
+
 これは評価runnerの生出力形式ではありません。traceや請求書は直接読み込まず、利用者が証跡を検査・集計するか、下記の限定adapterで保存済み採点reportから準備します。全金額は**同じ通貨**、token単価は**100万token当たり**です。為替換算や価格自動取得はありません。
 
 | フィールド | 意味・制約 |
