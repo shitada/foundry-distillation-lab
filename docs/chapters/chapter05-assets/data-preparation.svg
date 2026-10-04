@@ -37,7 +37,7 @@
     <rect x="24" y="442" width="172" height="92" rx="10" fill="#eff6ff" stroke="#60a5fa"/>
     <text x="110" y="470" font-size="20" font-weight="bold">学習用</text>
     <text x="110" y="494" font-size="14">train.jsonl</text>
-    <text x="110" y="519" font-size="14">追加学習に使う</text>
+    <text x="110" y="519" font-size="14">学習に使う</text>
     <rect x="220" y="442" width="172" height="92" rx="10" fill="#eff6ff" stroke="#60a5fa"/>
     <text x="306" y="470" font-size="20" font-weight="bold">検証用</text>
     <text x="306" y="494" font-size="14">validation.jsonl</text>

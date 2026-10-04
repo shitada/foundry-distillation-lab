@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="580" height="650" viewBox="0 0 580 650" role="img" aria-labelledby="title desc">
 <title id="title">蒸留と評価の実践の流れ</title>
-<desc id="desc">業務定義、教師履歴、学習前評価、追加学習、学習後評価、業務全体評価、費用グラフ作成の7段階。</desc>
+<desc id="desc">業務定義、教師履歴、学習前評価、学習、学習後評価、業務全体評価、費用グラフ作成の7段階。</desc>
 <rect width="100%" height="100%" fill="#ffffff"/>
 <g font-family="Yu Gothic,Meiryo,Noto Sans JP,sans-serif" fill="#172033">
 <defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/></marker></defs>
@@ -17,7 +17,7 @@
 <text x="290" y="248" font-size="16" text-anchor="middle">評価①：保存済み履歴から次の行動</text>
 <line x1="290" x2="290" y1="266" y2="283" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
 <rect x="20" y="288" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>
-<text x="290" y="316" font-size="19" text-anchor="middle" font-weight="bold">4. 生徒モデルへ追加学習する</text>
+<text x="290" y="316" font-size="19" text-anchor="middle" font-weight="bold">4. 生徒モデルを学習させる</text>
 <text x="290" y="340" font-size="16" text-anchor="middle">教師ありファインチューニング</text>
 <line x1="290" x2="290" y1="358" y2="375" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
 <rect x="20" y="380" width="540" height="70" rx="9" fill="#eff6ff" stroke="#93b5e7"/>

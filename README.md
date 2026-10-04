@@ -12,7 +12,7 @@
 - AIエージェントの運用コストに課題を感じ、必要な品質を保ちながら費用を減らす方法を検討したい方
 - 蒸留の考え方と、データ準備・学習・評価の一連の手法を学びたい方
 - 高性能モデルが担う仕事を、小型モデルへどこまで任せられるか確かめたい方
-- モデルの採用や追加学習の効果を、品質・応答時間・初期費用を含む総費用で判断したい方
+- モデルの採用やファインチューニングの効果を、品質・応答時間・初期費用を含む総費用で判断したい方
 
 新しく実験する標準構成は、教師モデルが`gpt-5.5`、生徒モデルが`gpt-4.1-nano`です。モデルの版と選び方は[第4章](docs/chapters/04-environment.md#教師モデルと生徒モデルを選ぶ)で説明します。
 
@@ -83,7 +83,7 @@
 | [03 小売業務](docs/chapters/03-retail.md) | 日本語contractと業務素材 | 正しい対応と不正操作の境界 |
 | [04 環境・実験条件と安全](docs/chapters/04-environment.md) | 実行環境と実験計画を準備 | 比較条件・判断基準・費用見積り・停止条件 |
 | [05 教師の履歴と分割](docs/chapters/05-data.md) | `prepare_data.py`、`collect.py` | 分割・監査と最終評価用データの管理 |
-| [06 追加学習と次の行動](docs/chapters/06-training.md) | `train.py`、`evaluate.py` | 評価①の学習前後の差分 |
+| [06 学習と次の行動の評価](docs/chapters/06-training.md) | `train.py`、`evaluate.py` | 評価①の学習前後の差分 |
 | [07 業務全体の評価](docs/chapters/07-end-to-end.md) | [実践手順](docs/how-to/07-end-to-end-evaluation.md)：`prepare_evaluation.py`、`evaluate.py study` | 評価②・自動採点・三つのモデルの比較 |
 | [08 費用の可視化](docs/chapters/08-cost.md) | `report.py --estimate`：入力なしで費用グラフを生成 | `graphs.md`：月額の分岐点・初期費用の回収 |
 | [09 蒸留をどこに使うか](docs/chapters/09-decision.md) | 実験結果の総括と次の展開 | 学習を続ける判断・学習以外の選択肢・モデルの役割分担 |

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="660" viewBox="0 0 640 660" role="img" aria-labelledby="title desc">
   <title id="title">蒸留を試す条件と採用する条件</title>
-  <desc id="desc">枝分かれのない六段階の判断図。学習前に投資の意味と追加学習の理由を確認し、教師ありファインチューニングと評価を実施する。学習後は必要品質、待ち時間と運用条件、今後の費用の利点を確認し、すべての必須条件を満たした範囲で学習済みの生徒モデルを使用する。</desc>
+  <desc id="desc">枝分かれのない六段階の判断図。学習前に投資の意味とファインチューニングの理由を確認し、教師ありファインチューニングと評価を実施する。学習後は必要品質、待ち時間と運用条件、今後の費用の利点を確認し、すべての必須条件を満たした範囲で学習済みの生徒モデルを使用する。</desc>
   <defs>
     <marker id="arrow" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto">
       <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
@@ -27,7 +27,7 @@
     <text x="320" y="47" font-size="20" font-weight="bold">1. 学習・評価へ投資する意味がある</text>
     <text x="320" y="72" font-size="16">利用量・運用期間・削減効果の見込みから予算を決める</text>
 
-    <text x="320" y="147" font-size="20" font-weight="bold">2. 追加学習する理由がある</text>
+    <text x="320" y="147" font-size="20" font-weight="bold">2. ファインチューニングする理由がある</text>
     <text x="320" y="172" font-size="16">学習前の生徒モデルだけでは必要な品質や効果を満たせない</text>
 
     <text x="320" y="231" font-size="16">教師ありファインチューニング・評価を実施</text>
