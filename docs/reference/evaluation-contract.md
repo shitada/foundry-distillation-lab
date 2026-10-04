@@ -119,7 +119,7 @@ record は `answer`, `events`, `final_state` を持ちます。イベント仕�
 
 call の重複、start/finish の欠落、モデル提案と実行の不一致、必須の初期順序違反、期待結果の不一致、未許可送信、最終状態・最終回答とイベントの不整合を検査します。成功そうな回答だけ、`status:"completed"` だけ、空イベントだけでは合格になりません。
 
-**防げた不正要求と実行された不正操作を別に数えます。** `blocked_invalid_calls` と `executed_unauthorized_actions` は異なる配列です。実行前の不明ツール・schema 違反は blocked。実行中の例外は「副作用がなかった」と推測せず unknown として停止します。ツール自身が構造化エラーと `external_side_effect:false` を返した場合だけ blocked と記録します。正常な模擬送信でも `external_side_effect:false` が必要です。防げた不正要求も品質上の問題であり、無条件合格にはしません。
+**防げた不正要求と実行された不正操作を別に数えます。** `blocked_invalid_calls` と `executed_unauthorized_actions` は異なる配列です。実行前の不明ツール・schema 違反は blocked。実行中の例外は「副作用がなかった」と推測せず unknown として停止します。ツール自身が構造化エラーと `external_side_effect:false` を返した場合だけ blocked と記録します。`submit_resolution`による正常な受付処理でも `external_side_effect:false` が必要です。防げた不正要求も品質上の問題であり、無条件合格にはしません。
 
 ### モデルの失敗は一件の不合格として評価を続ける
 
@@ -282,12 +282,12 @@ case bundle の `hosted_targets` に、評価ラベルごとの `agent_name`, `m
 | `status` | 会話実行の実際の状態。モデル HTTP の成功と同一視しない |
 | `events` | 本契約の model/tool start/finish と attempt_finish。tool の引数・結果・call_id は実際の実行観測 |
 | `answer` | 観測した最終回答。未取得なら null |
-| `final_state` | 実行した模擬送信の結果から runtime が観測した状態。未取得なら null |
+| `final_state` | `submit_resolution`による受付結果から runtime が観測した状態。未取得なら null |
 | `usage`, `latency_seconds` | 実測がある場合だけ。欠落は null、推定の0や擬似時間を入れない |
 
 adapter は `events` / `answer` / `final_state` を再生・補完しません。新しい envelope でも、欠けていればそのまま technical failure の証跡として残ります。case が要求しないテキスト確認のケースでも、モデルの start/finish と末尾の attempt_finish は必要です。model_finish.usage が欠ければ、自己申告の合計 usage が存在しても使用量の完全な観測とは扱いません。
 
-現在の Hosted template の `Capture` はこの canonical `hosted-retail-evidence` を `<conversation-hash>.evidence.json` に出力します。実際の wrapper の tool_start / tool_finish を個別ファイルにも新規保存し、観測した模擬送信結果だけから `final_state_scope:"observed_tool_returns_not_store_snapshot"` の状態を記録します。完全性が不明なら null にします。`Capture.request/response/call_tool/finish` と実際の RetailSession を用いたオフライン round-trip テストで、出力ファイル→adapter→採点の接続を確認済みです。ただし現在の tool-call 対応づけは下記の SDK context 未検証のため、この実 emitter のツール使用例は `unverified_framework_tool_call_linkage` による technical failure として保持されます。テストの HTTP 応答も合成 fixture であり、SDK/server/container やクラウド実行を確認したものではありません。
+現在の Hosted template の `Capture` はこの canonical `hosted-retail-evidence` を `<conversation-hash>.evidence.json` に出力します。実際の wrapper の tool_start / tool_finish を個別ファイルにも新規保存し、観測した`submit_resolution`の受付結果だけから `final_state_scope:"observed_tool_returns_not_store_snapshot"` の状態を記録します。完全性が不明なら null にします。`Capture.request/response/call_tool/finish` と実際の RetailSession を用いたオフライン round-trip テストで、出力ファイル→adapter→採点の接続を確認済みです。ただし現在の tool-call 対応づけは下記の SDK context 未検証のため、この実 emitter のツール使用例は `unverified_framework_tool_call_linkage` による technical failure として保持されます。テストの HTTP 応答も合成 fixture であり、SDK/server/container やクラウド実行を確認したものではありません。
 
 モデル HTTP のみを記録する既存の **`foundry-responses-capture` は評価②の実行証跡として未対応**で、明示的なエラーにします。request の履歴に tool result があっても、実際の tool_start / finish、例外・副作用、agent identity、観測した最終状態を捏造して補えないためです。この旧形式は学習データの import には使用できますが、業務実行証拠とは別です。
 
@@ -361,7 +361,7 @@ python scripts\evaluate.py run --mode next-action --input runs\next-action-input
 - モデル別の生成条件は、省略可能な`model_settings`に指定します。キーは`targets`にあるモデルラベルで、指定できる項目は`reasoning_effort`、`max_completion_tokens`、`timeout_seconds`です。省略した項目は共通設定を使い、`reasoning_effort`は指定したモデルにだけ送信します。
 - 教師`gpt-5.5`の標準値は、`model_settings.teacher`に`reasoning_effort: "high"`、`max_completion_tokens: 16384`、`timeout_seconds: 300`です。生徒の学習前後は共通設定の1,024トークン・60秒、採点用モデルは別の`grading-config.json`を使います。推論モデルの出力上限には推論トークンも含まれます。
 - 実際に適用した生成条件は実行記録の`generation_settings`へ保存します。比較・統合ではモデル別設定を含む同じ設定ファイルを使用し、教師と生徒の生成条件の違いを記録したうえで比較します。
-- 評価①は各ケース1要求で、ツールを実行しません。評価②は実際のRetailSessionに一致するtoolsとsystem promptを使い、模擬業務ツールを実行します。
+- 評価①は各ケース1要求で、ツールを実行しません。評価②は実際のRetailSessionに一致するtoolsとsystem promptを使い、教材の業務ツールを実行します。
 - 最初の通常ケースで接続も確認します。別の接続試験へ切り出さず、初回の時間・使用量を本評価に含めます。
 - runには`input.json`、送信前の`execution-start.json`、`evidence.json`、`scores.json`、結果保存後の`execution.json`を自動保存します。入力はそのまま固定し、選択モデルの観測を別の証跡へ保存します。内部識別値と送信記録もプログラムが管理します。
 - モデルの不正な要求や呼び出し上限は、一件の不合格として記録し、次のケースへ進みます。通信などの結果不明や記録の不整合では停止し、残りを未試行として分母に残します。SDKの自動再試行は無効です。
@@ -373,7 +373,7 @@ python scripts\evaluate.py run --mode next-action --input runs\next-action-input
 
 ### 第7章で使う評価②の実行と自動採点
 
-[第7章の実践手順](../how-to/07-end-to-end-evaluation.md)では、教材の比較用の問い合わせを生成し、三つのモデルの実行・自動採点・比較をまとめます。手元のPythonが模擬業務ツールを実行し、Foundryのモデルへ結果を返す構成です。
+[第7章の実践手順](../how-to/07-end-to-end-evaluation.md)では、教材の比較用の問い合わせを生成し、三つのモデルの実行・自動採点・比較をまとめます。手元のPythonが教材の業務ツールを実行し、Foundryのモデルへ結果を返す構成です。
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\prepare_evaluation.py --data-dir runs\data --output runs\e2e-input.json
